@@ -50,6 +50,13 @@
             "flutterMode": "release"
         },
         {
+            "name": "bike (Chrome)",
+            "cwd": "bike",
+            "request": "launch",
+            "type": "dart",
+            "deviceId": "chrome"
+        },
+        {
             "name": "bike (Flutter SM A156E)",
             "cwd": "bike",
             "request": "launch",

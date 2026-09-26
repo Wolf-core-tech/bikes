@@ -4,6 +4,7 @@ import '../providers/squad_provider.dart';
 import '../models/ride_stats_model.dart';
 import '../models/rider_model.dart';
 import '../theme/app_theme.dart';
+import 'expenses_screen.dart';
 
 class StatsScreen extends StatefulWidget {
   const StatsScreen({super.key});
@@ -36,6 +37,16 @@ class _StatsScreenState extends State<StatsScreen>
         title: const Text('Ride Statistics'),
         backgroundColor: AppColors.themedBackground,
         elevation: 0,
+        actions: [
+          IconButton(
+            tooltip: 'Expenses',
+            icon: const Icon(Icons.receipt_long_outlined),
+            onPressed: () => Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => const ExpensesScreen()),
+            ),
+          ),
+        ],
         bottom: TabBar(
           controller: _tabController,
           indicatorColor: AppColors.orange,

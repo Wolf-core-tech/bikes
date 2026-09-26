@@ -70,19 +70,6 @@ const sampleRideExpenses = [
       ExpenseItem(label: 'Food', amount: 350, icon: Icons.restaurant),
     ],
   ),
-  RideExpense(
-    rideName: "Today's Ride",
-    distance: '128 KM',
-    date: 'Today',
-    items: [
-      ExpenseItem(label: 'Petrol', amount: 500, icon: Icons.local_gas_station),
-      ExpenseItem(label: 'Tea', amount: 60, icon: Icons.local_cafe),
-      ExpenseItem(label: 'Puncture', amount: 0, icon: Icons.build_circle),
-      ExpenseItem(label: 'Bike Service', amount: 0, icon: Icons.two_wheeler),
-      ExpenseItem(label: 'Hotels', amount: 0, icon: Icons.hotel),
-      ExpenseItem(label: 'Food', amount: 290, icon: Icons.restaurant),
-    ],
-  ),
 ];
 
 String formatMoney(int amount) => 'Rs.$amount';

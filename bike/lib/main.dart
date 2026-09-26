@@ -1,12 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'models/rider_model.dart';
+import 'models/user_model.dart';
 import 'providers/squad_provider.dart';
 import 'providers/bike_provider.dart';
 import 'providers/ride_provider.dart';
 import 'providers/ride_tracking_provider.dart';
 import 'providers/auth_provider.dart';
-import 'screens/expenses_screen.dart';
 import 'screens/ride_name_screen.dart';
 import 'screens/squad_screen.dart';
 import 'screens/settings_screen.dart';
@@ -16,8 +16,14 @@ import 'screens/ride_tracking_screen.dart';
 import 'theme/app_theme.dart';
 import 'providers/community_provider.dart';
 import 'widgets/community_dialogs.dart';
+import 'package:firebase_core/firebase_core.dart';
+import 'firebase_options.dart';
 
-void main() {
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+
+  await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
+
   runApp(
     MultiProvider(
       providers: [
@@ -84,7 +90,6 @@ class _MainShellState extends State<MainShell> {
     _screens = [
       _HomeScreen(
         onSquadTap: () => setState(() => _selectedIndex = 2),
-        onReportsTap: () => setState(() => _selectedIndex = 3),
         onRideStarted: () => setState(() => _selectedIndex = 1),
       ),
       MapTabScreen(onRideEnded: () => setState(() => _selectedIndex = 0)),
@@ -134,17 +139,44 @@ class _MainShellState extends State<MainShell> {
 // ─── Home Screen ──────────────────────────────────────────────────────────────
 class _HomeScreen extends StatelessWidget {
   final VoidCallback? onSquadTap;
-  final VoidCallback? onReportsTap;
   final VoidCallback onRideStarted;
 
-  const _HomeScreen({
-    this.onSquadTap,
-    this.onReportsTap,
-    required this.onRideStarted,
-  });
+  const _HomeScreen({this.onSquadTap, required this.onRideStarted});
 
   @override
   Widget build(BuildContext context) {
+    final currentUser = context.watch<AuthProvider>().currentUser;
+    final squad = context.watch<SquadProvider>();
+    final tracking = context.watch<RideTrackingProvider>();
+    final community = context.watch<CommunityProvider>();
+    final friends = currentUser == null
+        ? const <UserModel>[]
+        : community.friendsFor(
+            currentUser.email,
+            context.watch<AuthProvider>().registeredUsers,
+          );
+    final today = DateTime.now();
+    final todayRides = tracking.completedRides
+        .where(
+          (ride) =>
+              ride.endTime.year == today.year &&
+              ride.endTime.month == today.month &&
+              ride.endTime.day == today.day,
+        )
+        .toList();
+    final todayDistance = todayRides.fold<double>(
+      0,
+      (sum, ride) => sum + ride.distanceKm,
+    );
+    final todayDuration = todayRides.fold<Duration>(
+      Duration.zero,
+      (sum, ride) => sum + ride.totalDuration,
+    );
+    final todayBreakTime = todayRides.fold<Duration>(
+      Duration.zero,
+      (sum, ride) => sum + ride.stoppedDuration,
+    );
+
     return Scaffold(
       backgroundColor: AppColors.themedBackground,
       appBar: AppBar(
@@ -189,16 +221,16 @@ class _HomeScreen extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      'Welcome buddy 🔥',
+                      'Welcome ${currentUser?.name ?? 'Rider'}',
                       style: TextStyle(
                         color: AppColors.themedText,
                         fontSize: 20,
                         fontWeight: FontWeight.w700,
                       ),
                     ),
-                    SizedBox(height: 4),
+                    const SizedBox(height: 4),
                     Text(
-                      '3Bikers Squad',
+                      squad.activeGroup?.name ?? 'No squad yet',
                       style: TextStyle(
                         color: AppColors.themedText,
                         fontSize: 13,
@@ -236,7 +268,7 @@ class _HomeScreen extends StatelessWidget {
               ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
-                children: const [
+                children: [
                   Text(
                     "Today's Ride",
                     style: TextStyle(
@@ -245,18 +277,142 @@ class _HomeScreen extends StatelessWidget {
                       fontWeight: FontWeight.w700,
                     ),
                   ),
-                  SizedBox(height: 16),
-                  _RideInfoRow(title: 'Distance', value: '128 KM'),
-                  _RideInfoRow(title: 'Ride Time', value: '4h 20m'),
-                  _RideInfoRow(title: 'Break Time', value: '35m'),
-                  _RideInfoRow(title: 'Spent', value: '₹850'),
+                  const SizedBox(height: 16),
+                  if (todayRides.isEmpty) ...[
+                    Text(
+                      'No ride recorded today',
+                      style: TextStyle(
+                        color: AppColors.themedText,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      'Start a ride to see your ride statistics',
+                      style: TextStyle(color: AppColors.themedGrey),
+                    ),
+                  ] else ...[
+                    _RideInfoRow(
+                      title: 'Distance',
+                      value: '${todayDistance.toStringAsFixed(1)} KM',
+                    ),
+                    _RideInfoRow(
+                      title: 'Ride Time',
+                      value: _formatRideDuration(todayDuration),
+                    ),
+                    _RideInfoRow(
+                      title: 'Break Time',
+                      value: _formatRideDuration(todayBreakTime),
+                    ),
+                    const _RideInfoRow(title: 'Spent', value: 'Not recorded'),
+                  ],
                 ],
               ),
             ),
 
-            const SizedBox(height: 24),
+            const SizedBox(height: 20),
+            SizedBox(
+              width: double.infinity,
+              child: OutlinedButton.icon(
+                onPressed: () => showAddRiderDialog(context),
+                icon: const Icon(Icons.person_add_alt_1),
+                label: const Text('Add Rider'),
+                style: OutlinedButton.styleFrom(
+                  minimumSize: const Size.fromHeight(52),
+                  shape: const StadiumBorder(),
+                ),
+              ),
+            ),
 
-            // ── Quick Actions ──
+            const SizedBox(height: 24),
+            Text(
+              'Friends',
+              style: TextStyle(
+                color: AppColors.themedText,
+                fontSize: 18,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+            const SizedBox(height: 12),
+            if (friends.isEmpty)
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(18),
+                decoration: BoxDecoration(
+                  color: AppColors.themedCard,
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(color: AppColors.themedGreyBorder),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'No friends added yet',
+                      style: TextStyle(
+                        color: AppColors.themedText,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      'Add riders to start building your riding network.',
+                      style: TextStyle(color: AppColors.themedGrey),
+                    ),
+                  ],
+                ),
+              )
+            else
+              Container(
+                decoration: BoxDecoration(
+                  color: AppColors.themedCard,
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(color: AppColors.themedGreyBorder),
+                ),
+                child: Column(
+                  children: [
+                    for (var index = 0; index < friends.length; index++) ...[
+                      ListTile(
+                        leading: CircleAvatar(
+                          backgroundColor: AppColors.orangeGlow,
+                          child: Text(
+                            _friendInitials(friends[index].name),
+                            style: const TextStyle(color: AppColors.orange),
+                          ),
+                        ),
+                        title: Text(
+                          friends[index].name,
+                          style: TextStyle(color: AppColors.themedText),
+                        ),
+                        trailing: Icon(
+                          Icons.chevron_right,
+                          color: AppColors.themedGrey,
+                        ),
+                        onTap: () => showDialog<void>(
+                          context: context,
+                          builder: (context) => AlertDialog(
+                            title: Text(friends[index].name),
+                            content: Text(friends[index].email),
+                            actions: [
+                              TextButton(
+                                onPressed: () => Navigator.pop(context),
+                                child: const Text('Close'),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                      if (index < friends.length - 1)
+                        Divider(
+                          height: 1,
+                          indent: 68,
+                          color: AppColors.themedGreyBorder,
+                        ),
+                    ],
+                  ],
+                ),
+              ),
+
+            const SizedBox(height: 24),
             const Text(
               'Quick Actions',
               style: TextStyle(
@@ -294,58 +450,7 @@ class _HomeScreen extends StatelessWidget {
                   iconColor: AppColors.themedText,
                   onTap: onSquadTap ?? () {},
                 ),
-                _ActionCard(
-                  icon: Icons.currency_rupee,
-                  title: 'Expenses',
-                  iconColor: AppColors.themedText,
-                  onTap: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(builder: (_) => const ExpensesScreen()),
-                    );
-                  },
-                ),
-                _ActionCard(
-                  icon: Icons.bar_chart,
-                  title: 'Reports',
-                  iconColor: AppColors.themedText,
-                  onTap: onReportsTap ?? () {},
-                ),
               ],
-            ),
-
-            const SizedBox(height: 16),
-            SizedBox(
-              width: double.infinity,
-              child: OutlinedButton.icon(
-                onPressed: () => showAddRiderDialog(context),
-                icon: const Icon(Icons.person_add_alt_1),
-                label: const Text('Add Rider'),
-              ),
-            ),
-
-            const SizedBox(height: 24),
-
-            // ── Recent Rides ──
-            const Text(
-              'Recent Rides',
-              style: TextStyle(
-                color: Color.fromARGB(255, 172, 170, 170),
-                fontSize: 18,
-                fontWeight: FontWeight.w700,
-              ),
-            ),
-            const SizedBox(height: 14),
-            const _RideHistoryCard(
-              location: 'Ooty Ride',
-              distance: '320 KM',
-              expense: '₹2400',
-            ),
-            const SizedBox(height: 12),
-            const _RideHistoryCard(
-              location: 'Yelagiri Ride',
-              distance: '210 KM',
-              expense: '₹1500',
             ),
             const SizedBox(height: 16),
           ],
@@ -385,6 +490,20 @@ class _RideInfoRow extends StatelessWidget {
       ),
     );
   }
+}
+
+String _formatRideDuration(Duration duration) {
+  final hours = duration.inHours;
+  final minutes = duration.inMinutes.remainder(60);
+  if (hours > 0) return '${hours}h ${minutes}m';
+  return '${duration.inMinutes}m';
+}
+
+String _friendInitials(String name) {
+  final parts = name.trim().split(RegExp(r'\s+'));
+  if (parts.isEmpty || parts.first.isEmpty) return '?';
+  if (parts.length == 1) return parts.first[0].toUpperCase();
+  return '${parts.first[0]}${parts.last[0]}'.toUpperCase();
 }
 
 // ─── Action Card ───────────────────────────────────────────────────────────────
@@ -441,101 +560,6 @@ class _ActionCard extends StatelessWidget {
           ],
         ),
       ),
-    );
-  }
-}
-
-// ─── Ride History Card ─────────────────────────────────────────────────────────
-class _RideHistoryCard extends StatelessWidget {
-  final String location;
-  final String distance;
-  final String expense;
-
-  const _RideHistoryCard({
-    required this.location,
-    required this.distance,
-    required this.expense,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return ValueListenableBuilder<List<RideExpense>>(
-      valueListenable: rideExpensesNotifier,
-      builder: (context, rides, _) {
-        RideExpense? matchingRide;
-        for (final ride in rides) {
-          if (ride.rideName == location) {
-            matchingRide = ride;
-            break;
-          }
-        }
-        final rideForDetails = matchingRide;
-
-        return InkWell(
-          onTap: rideForDetails == null
-              ? null
-              : () => showRideExpenseDetails(context, rideForDetails),
-          borderRadius: BorderRadius.circular(16),
-          child: Container(
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              color: AppColors.themedCard,
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: AppColors.themedGreyBorder, width: 1),
-            ),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        location,
-                        style: TextStyle(
-                          color: AppColors.themedText,
-                          fontSize: 16,
-                          fontWeight: FontWeight.w700,
-                        ),
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        distance,
-                        style: const TextStyle(
-                          color: Color.fromARGB(255, 190, 190, 190),
-                          fontSize: 13,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text(
-                      matchingRide == null
-                          ? expense
-                          : formatMoney(matchingRide.total),
-                      style: const TextStyle(
-                        color: Color.fromARGB(255, 255, 255, 255),
-                        fontSize: 16,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                    if (matchingRide != null) ...[
-                      const SizedBox(width: 8),
-                      const Icon(
-                        Icons.keyboard_arrow_right,
-                        color: Color.fromARGB(255, 255, 255, 255),
-                      ),
-                    ],
-                  ],
-                ),
-              ],
-            ),
-          ),
-        );
-      },
     );
   }
 }

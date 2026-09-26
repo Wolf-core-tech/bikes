@@ -35,6 +35,13 @@ class CommunityProvider extends ChangeNotifier {
   bool areFriends(String firstId, String secondId) =>
       _friends[firstId]?.contains(secondId) ?? false;
 
+  List<UserModel> friendsFor(String userId, List<UserModel> users) {
+    final friendIds = _friends[userId.trim().toLowerCase()] ?? const <String>[];
+    return users
+        .where((user) => friendIds.contains(user.email.trim().toLowerCase()))
+        .toList();
+  }
+
   Future<void> _load() async {
     final prefs = await SharedPreferences.getInstance();
     _requests = _decodeList(

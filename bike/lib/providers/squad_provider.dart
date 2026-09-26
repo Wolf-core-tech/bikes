@@ -5,9 +5,9 @@ import '../../models/rider_model.dart';
 import '../../models/ride_stats_model.dart';
 
 class SquadProvider extends ChangeNotifier {
-  List<RiderGroup> _groups = [];
+  final List<RiderGroup> _groups = [];
   RiderGroup? _activeGroup;
-  List<RideRecord> _rideRecords = [];
+  final List<RideRecord> _rideRecords = [];
   final Map<String, List<SquadChatMessage>> _chatMessagesByGroup = {};
   static const _joinedMembersKey = 'persisted_squad_members';
 
@@ -20,7 +20,6 @@ class SquadProvider extends ChangeNotifier {
   List<RideRecord> get rideRecords => _rideRecords;
 
   SquadProvider() {
-    _initDemo();
     _loadPersistedMembers();
   }
 
@@ -65,84 +64,6 @@ class SquadProvider extends ChangeNotifier {
         .toList();
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(_joinedMembersKey, jsonEncode(records));
-  }
-
-  void _initDemo() {
-    final leader = Rider(
-      id: currentUserId,
-      name: currentUserName,
-      role: RiderRole.leader,
-      isCurrentUser: true,
-    );
-    _groups = [
-      RiderGroup(
-        id: 'grp_001',
-        name: 'Thunder Hawks',
-        leaderId: currentUserId,
-        kind: SquadKind.squad,
-        members: [leader],
-      ),
-    ];
-    _activeGroup = _groups.first;
-    _chatMessagesByGroup['grp_001'] = [
-      SquadChatMessage(
-        id: 'msg_001',
-        groupId: 'grp_001',
-        senderId: currentUserId,
-        senderName: currentUserName,
-        text: 'Welcome to Thunder Hawks!',
-        sentAt: DateTime.now().subtract(const Duration(minutes: 12)),
-      ),
-    ];
-
-    // Initialize with sample ride records
-    _initSampleRides();
-  }
-
-  void _initSampleRides() {
-    final now = DateTime.now();
-    _rideRecords = [
-      RideRecord(
-        id: 'ride_001',
-        groupId: 'grp_001',
-        groupName: 'Thunder Hawks',
-        riderId: currentUserId,
-        rolePlayedDuringRide: RiderRole.leader,
-        rideDate: now.subtract(const Duration(days: 30)),
-        distanceKm: 25.5,
-        durationMinutes: 120,
-      ),
-      RideRecord(
-        id: 'ride_002',
-        groupId: 'grp_001',
-        groupName: 'Thunder Hawks',
-        riderId: currentUserId,
-        rolePlayedDuringRide: RiderRole.leader,
-        rideDate: now.subtract(const Duration(days: 20)),
-        distanceKm: 18.3,
-        durationMinutes: 90,
-      ),
-      RideRecord(
-        id: 'ride_003',
-        groupId: 'grp_001',
-        groupName: 'Thunder Hawks',
-        riderId: currentUserId,
-        rolePlayedDuringRide: RiderRole.coLeader,
-        rideDate: now.subtract(const Duration(days: 10)),
-        distanceKm: 32.0,
-        durationMinutes: 150,
-      ),
-      RideRecord(
-        id: 'ride_004',
-        groupId: 'grp_001',
-        groupName: 'Thunder Hawks',
-        riderId: currentUserId,
-        rolePlayedDuringRide: RiderRole.leader,
-        rideDate: now.subtract(const Duration(days: 5)),
-        distanceKm: 22.8,
-        durationMinutes: 110,
-      ),
-    ];
   }
 
   RiderGroup createGroup(String name, {SquadKind kind = SquadKind.squad}) {

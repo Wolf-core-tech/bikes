@@ -6,6 +6,7 @@ import '../providers/auth_provider.dart';
 import '../providers/bike_provider.dart';
 import '../theme/app_theme.dart';
 import '../widgets/auth_header.dart';
+import '../widgets/bike_brand_selector.dart';
 import 'login_screen.dart';
 
 class RegisterScreen extends StatefulWidget {
@@ -20,9 +21,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
   final _emailController = TextEditingController();
   final _phoneController = TextEditingController();
   final _passwordController = TextEditingController();
-  
+
   // Bike details controllers
-  final _bikeBrandController = TextEditingController();
   final _bikeModelController = TextEditingController();
   final _bikeCcController = TextEditingController();
   final _bikeYearController = TextEditingController();
@@ -30,6 +30,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
   bool _obscurePassword = true;
   String _bikeStatus = 'Don\'t have bike'; // Default selection
+  String? _selectedBikeBrand;
 
   void _register() async {
     final name = _nameController.text.trim();
@@ -40,7 +41,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
     if (name.isEmpty || email.isEmpty || phone.isEmpty || password.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Please fill in all mandatory personal details (Name, Email, Phone, Password).'),
+          content: Text(
+            'Please fill in all mandatory personal details (Name, Email, Phone, Password).',
+          ),
           backgroundColor: Colors.redAccent,
           behavior: SnackBarBehavior.floating,
         ),
@@ -71,13 +74,16 @@ class _RegisterScreenState extends State<RegisterScreen> {
     }
 
     if (_bikeStatus == 'Have bike') {
-      final brand = _bikeBrandController.text.trim();
       final model = _bikeModelController.text.trim();
       final cc = _bikeCcController.text.trim();
       final year = _bikeYearController.text.trim();
       final reg = _bikeRegistrationController.text.trim();
 
-      if (brand.isEmpty || model.isEmpty || cc.isEmpty || year.isEmpty || reg.isEmpty) {
+      if (_selectedBikeBrand == null ||
+          model.isEmpty ||
+          cc.isEmpty ||
+          year.isEmpty ||
+          reg.isEmpty) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text('Please fill in all mandatory bike specifications.'),
@@ -95,11 +101,17 @@ class _RegisterScreenState extends State<RegisterScreen> {
       phone: phone,
       password: password,
       bikeStatus: _bikeStatus,
-      bikeBrand: _bikeStatus == 'Have bike' ? _bikeBrandController.text.trim() : null,
-      bikeModel: _bikeStatus == 'Have bike' ? _bikeModelController.text.trim() : null,
+      bikeBrand: _bikeStatus == 'Have bike' ? _selectedBikeBrand : null,
+      bikeModel: _bikeStatus == 'Have bike'
+          ? _bikeModelController.text.trim()
+          : null,
       bikeCc: _bikeStatus == 'Have bike' ? _bikeCcController.text.trim() : null,
-      bikeYear: _bikeStatus == 'Have bike' ? _bikeYearController.text.trim() : null,
-      bikeRegistration: _bikeStatus == 'Have bike' ? _bikeRegistrationController.text.trim() : null,
+      bikeYear: _bikeStatus == 'Have bike'
+          ? _bikeYearController.text.trim()
+          : null,
+      bikeRegistration: _bikeStatus == 'Have bike'
+          ? _bikeRegistrationController.text.trim()
+          : null,
     );
 
     // Save user to AuthProvider
@@ -107,18 +119,19 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
     // Add bike to BikeProvider if user registered a bike
     if (_bikeStatus == 'Have bike' && mounted) {
-      final bikeBrandText = _bikeBrandController.text.trim();
+      final bikeBrandText = _selectedBikeBrand!;
       final bikeModelText = _bikeModelController.text.trim();
       context.read<BikeProvider>().addBike(
         Bike(
           id: 'bike_${DateTime.now().millisecondsSinceEpoch}',
           name: '$bikeBrandText $bikeModelText',
-          brand: BikeBrand.heroMotoCorp,
+          brand: bikeBrandFromRegistrationName(bikeBrandText),
           model: bikeModelText,
           yearOfPurchase: int.tryParse(_bikeYearController.text.trim()) ?? 2023,
           licensePlate: _bikeRegistrationController.text.trim(),
           color: 'Red & Black',
-          engineCapacity: double.tryParse(_bikeCcController.text.trim()) ?? 150.0,
+          engineCapacity:
+              double.tryParse(_bikeCcController.text.trim()) ?? 150.0,
         ),
       );
     }
@@ -127,7 +140,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text('Registration successful for $name! Please sign in to continue.'),
+        content: Text(
+          'Registration successful for $name! Please sign in to continue.',
+        ),
         backgroundColor: Colors.green,
         behavior: SnackBarBehavior.floating,
       ),
@@ -136,10 +151,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
     Navigator.pushAndRemoveUntil(
       context,
       MaterialPageRoute(
-        builder: (context) => LoginScreen(
-          prefilledEmail: email,
-          prefilledPassword: password,
-        ),
+        builder: (context) =>
+            LoginScreen(prefilledEmail: email, prefilledPassword: password),
       ),
       (route) => false,
     );
@@ -151,7 +164,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
     _emailController.dispose();
     _phoneController.dispose();
     _passwordController.dispose();
-    _bikeBrandController.dispose();
     _bikeModelController.dispose();
     _bikeCcController.dispose();
     _bikeYearController.dispose();
@@ -215,7 +227,10 @@ class _RegisterScreenState extends State<RegisterScreen> {
             ),
 
             Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 28.0),
+              padding: const EdgeInsets.symmetric(
+                horizontal: 24.0,
+                vertical: 28.0,
+              ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -254,7 +269,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
                     obscureText: _obscurePassword,
                     suffixIcon: IconButton(
                       icon: Icon(
-                        _obscurePassword ? Icons.visibility_off : Icons.visibility,
+                        _obscurePassword
+                            ? Icons.visibility_off
+                            : Icons.visibility,
                         color: AppColors.themedGrey,
                       ),
                       onPressed: () {
@@ -268,7 +285,11 @@ class _RegisterScreenState extends State<RegisterScreen> {
                   const SizedBox(height: 10),
                   Row(
                     children: [
-                      const Icon(Icons.two_wheeler, color: Color(0xFFE63946), size: 24),
+                      const Icon(
+                        Icons.two_wheeler,
+                        color: Color(0xFFE63946),
+                        size: 24,
+                      ),
                       const SizedBox(width: 8),
                       Text(
                         'Bike Status',
@@ -285,7 +306,10 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
                   // Dropdown for Bike Status
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 4,
+                    ),
                     decoration: BoxDecoration(
                       color: AppColors.themedCard,
                       border: Border.all(color: AppColors.themedGreyBorder),
@@ -296,7 +320,10 @@ class _RegisterScreenState extends State<RegisterScreen> {
                         value: _bikeStatus,
                         isExpanded: true,
                         dropdownColor: AppColors.themedCard,
-                        icon: const Icon(Icons.keyboard_arrow_down, color: Color(0xFFE63946)),
+                        icon: const Icon(
+                          Icons.keyboard_arrow_down,
+                          color: Color(0xFFE63946),
+                        ),
                         style: TextStyle(
                           color: AppColors.themedText,
                           fontSize: 16,
@@ -311,11 +338,12 @@ class _RegisterScreenState extends State<RegisterScreen> {
                         },
                         items: <String>['Have bike', 'Don\'t have bike']
                             .map<DropdownMenuItem<String>>((String value) {
-                          return DropdownMenuItem<String>(
-                            value: value,
-                            child: Text(value),
-                          );
-                        }).toList(),
+                              return DropdownMenuItem<String>(
+                                value: value,
+                                child: Text(value),
+                              );
+                            })
+                            .toList(),
                       ),
                     ),
                   ),
@@ -332,10 +360,11 @@ class _RegisterScreenState extends State<RegisterScreen> {
                       ),
                     ),
                     const SizedBox(height: 16),
-                    _buildTextField(
-                      controller: _bikeBrandController,
-                      label: 'Bike Brand * (e.g., Yamaha, Honda)',
-                      icon: Icons.motorcycle,
+                    BikeBrandSelector(
+                      selectedBrand: _selectedBikeBrand,
+                      onSelected: (brand) => setState(() {
+                        _selectedBikeBrand = brand;
+                      }),
                     ),
                     _buildTextField(
                       controller: _bikeModelController,
@@ -383,7 +412,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
                       borderRadius: BorderRadius.circular(16),
                       boxShadow: [
                         BoxShadow(
-                          color: const Color(0xFFE63946).withValues(alpha: 0.35),
+                          color: const Color(
+                            0xFFE63946,
+                          ).withValues(alpha: 0.35),
                           blurRadius: 16,
                           offset: const Offset(0, 6),
                         ),
@@ -411,7 +442,11 @@ class _RegisterScreenState extends State<RegisterScreen> {
                             ),
                           ),
                           SizedBox(width: 8),
-                          Icon(Icons.check_circle_outline_rounded, color: Colors.white, size: 20),
+                          Icon(
+                            Icons.check_circle_outline_rounded,
+                            color: Colors.white,
+                            size: 20,
+                          ),
                         ],
                       ),
                     ),

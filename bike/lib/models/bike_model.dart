@@ -12,12 +12,16 @@ enum BikeBrand {
   ducati,
   triumphMotorcycles,
   harleyDavidson,
+  indianMotorcycle,
   jawa,
   yezdi,
+  benelli,
+  husqvarna,
   aprilia,
   atherEnergy,
   olaElectric,
   simpleEnergy,
+  other,
 }
 
 extension BikeBrandExtension on BikeBrand {
@@ -49,10 +53,16 @@ extension BikeBrandExtension on BikeBrand {
         return 'Triumph Motorcycles';
       case BikeBrand.harleyDavidson:
         return 'Harley-Davidson';
+      case BikeBrand.indianMotorcycle:
+        return 'Indian Motorcycle';
       case BikeBrand.jawa:
         return 'Jawa';
       case BikeBrand.yezdi:
         return 'Yezdi';
+      case BikeBrand.benelli:
+        return 'Benelli';
+      case BikeBrand.husqvarna:
+        return 'Husqvarna';
       case BikeBrand.aprilia:
         return 'Aprilia';
       case BikeBrand.atherEnergy:
@@ -61,6 +71,8 @@ extension BikeBrandExtension on BikeBrand {
         return 'Ola Electric';
       case BikeBrand.simpleEnergy:
         return 'Simple Energy';
+      case BikeBrand.other:
+        return 'Other';
     }
   }
 
@@ -92,10 +104,16 @@ extension BikeBrandExtension on BikeBrand {
         return '🟦';
       case BikeBrand.harleyDavidson:
         return '🟥';
+      case BikeBrand.indianMotorcycle:
+        return '🟤';
       case BikeBrand.jawa:
         return '🟨';
       case BikeBrand.yezdi:
         return '🟩';
+      case BikeBrand.benelli:
+        return '🟠';
+      case BikeBrand.husqvarna:
+        return '🟢';
       case BikeBrand.aprilia:
         return '🟪';
       case BikeBrand.atherEnergy:
@@ -104,7 +122,56 @@ extension BikeBrandExtension on BikeBrand {
         return '🔌';
       case BikeBrand.simpleEnergy:
         return '💡';
+      case BikeBrand.other:
+        return '🏍️';
     }
+  }
+}
+
+BikeBrand bikeBrandFromRegistrationName(String brand) {
+  switch (brand) {
+    case 'Hero MotoCorp':
+      return BikeBrand.heroMotoCorp;
+    case 'Honda':
+      return BikeBrand.hondaMotorcycleScoterIndia;
+    case 'TVS':
+      return BikeBrand.tvsMotorCompany;
+    case 'Bajaj':
+      return BikeBrand.bajajauto;
+    case 'Royal Enfield':
+      return BikeBrand.royalEnfield;
+    case 'Yamaha':
+      return BikeBrand.yamahaMotorIndia;
+    case 'Suzuki':
+      return BikeBrand.suzukiMotorcycleIndia;
+    case 'KTM':
+      return BikeBrand.ktm;
+    case 'Kawasaki':
+      return BikeBrand.kawasaki;
+    case 'BMW Motorrad':
+      return BikeBrand.bmwMotorrad;
+    case 'Triumph':
+      return BikeBrand.triumphMotorcycles;
+    case 'Ducati':
+      return BikeBrand.ducati;
+    case 'Harley-Davidson':
+      return BikeBrand.harleyDavidson;
+    case 'Indian Motorcycle':
+      return BikeBrand.indianMotorcycle;
+    case 'Aprilia':
+      return BikeBrand.aprilia;
+    case 'Benelli':
+      return BikeBrand.benelli;
+    case 'Jawa':
+      return BikeBrand.jawa;
+    case 'Yezdi':
+      return BikeBrand.yezdi;
+    case 'Husqvarna':
+      return BikeBrand.husqvarna;
+    case 'Other':
+      return BikeBrand.other;
+    default:
+      throw ArgumentError.value(brand, 'brand', 'Unknown bike brand');
   }
 }
 

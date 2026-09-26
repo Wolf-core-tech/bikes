@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "856351497483",
+    "project_id": "bikes-b6d74",
+    "storage_bucket": "bikes-b6d74.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:856351497483:android:dfc8887a90ebc03e82d60e",
+        "android_client_info": {
+          "package_name": "com.example.bikers"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCAXa3O0yV8PfcLwI0Qtx5YegIdnsZQJbA"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
