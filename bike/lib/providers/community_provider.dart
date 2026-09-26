@@ -127,8 +127,9 @@ class CommunityProvider extends ChangeNotifier {
     final senderId = _userId(sender);
     final receiverId = _userId(receiver);
     if (senderId == receiverId) return 'You cannot add yourself.';
-    if (areFriends(senderId, receiverId))
+    if (areFriends(senderId, receiverId)) {
       return 'This rider is already your friend.';
+    }
     if (_requests.any(
       (request) =>
           request.senderId == senderId &&
@@ -227,15 +228,17 @@ class CommunityProvider extends ChangeNotifier {
     );
     if (invitationIndex == -1) return 'Invalid invitation code.';
     final invitation = _invitations[invitationIndex];
-    if (invitation.status != InvitationStatus.active)
+    if (invitation.status != InvitationStatus.active) {
       return 'This invitation code has already been used.';
+    }
     if (invitation.isExpired) return 'This invitation code has expired.';
     if (!squadExists(invitation.squadId)) return 'This squad does not exist.';
     if (isAlreadyMember(invitation.squadId)) {
       return 'You are already a member of this squad.';
     }
-    if (invitation.createdBy == currentUserId)
+    if (invitation.createdBy == currentUserId) {
       return 'You cannot join your own squad invitation.';
+    }
 
     addMember(invitation.squadId);
     _invitations[invitationIndex] = invitation.copyWith(

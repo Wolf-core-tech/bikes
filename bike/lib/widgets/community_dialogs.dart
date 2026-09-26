@@ -184,11 +184,12 @@ class _AddRiderDialogState extends State<_AddRiderDialog> {
       sender: sender,
       receiver: receiver,
     );
-    if (mounted)
+    if (mounted) {
       setState(() {
         _message = message;
         _busy = false;
       });
+    }
   }
 
   Future<void> _createInvitation() async {
@@ -313,8 +314,12 @@ class _JoinSquadDialogState extends State<_JoinSquadDialog> {
 
   @override
   void dispose() {
-    for (final controller in _controllers) controller.dispose();
-    for (final node in _focusNodes) node.dispose();
+    for (final controller in _controllers) {
+      controller.dispose();
+    }
+    for (final node in _focusNodes) {
+      node.dispose();
+    }
     super.dispose();
   }
 
@@ -358,8 +363,9 @@ class _JoinSquadDialogState extends State<_JoinSquadDialog> {
       inputFormatters: [FilteringTextInputFormatter.digitsOnly],
       decoration: const InputDecoration(counterText: ''),
       onChanged: (value) {
-        if (value.length == 1 && index < 3)
+        if (value.length == 1 && index < 3) {
           _focusNodes[index + 1].requestFocus();
+        }
         if (value.isEmpty && index > 0) _focusNodes[index - 1].requestFocus();
       },
     ),
