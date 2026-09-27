@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:firebase_auth/firebase_auth.dart' show FirebaseAuthException;
 import '../models/user_model.dart';
 import '../models/bike_model.dart';
 import '../providers/auth_provider.dart';
@@ -114,8 +115,19 @@ class _RegisterScreenState extends State<RegisterScreen> {
           : null,
     );
 
-    // Save user to AuthProvider
-    await context.read<AuthProvider>().registerUser(newUser);
+    try {
+      await context.read<AuthProvider>().registerUser(newUser);
+    } on FirebaseAuthException catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(error.message ?? 'Unable to create this account.'),
+          backgroundColor: Colors.redAccent,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+      return;
+    }
 
     // Add bike to BikeProvider if user registered a bike
     if (_bikeStatus == 'Have bike' && mounted) {

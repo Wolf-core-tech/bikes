@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'models/rider_model.dart';
@@ -16,8 +18,12 @@ import 'screens/ride_tracking_screen.dart';
 import 'theme/app_theme.dart';
 import 'providers/community_provider.dart';
 import 'widgets/community_dialogs.dart';
+import 'widgets/friend_presence_label.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'firebase_options.dart';
+import 'screens/chat_screen.dart';
+import 'screens/chats_screen.dart';
+import 'services/chat_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -63,8 +69,11 @@ class MainShell extends StatefulWidget {
   State<MainShell> createState() => _MainShellState();
 }
 
-class _MainShellState extends State<MainShell> {
+class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
   int _selectedIndex = 0;
+  late final AuthProvider _authProvider;
+  Timer? _presenceTimer;
+  bool _isForeground = true;
 
   static const _labels = ['Home', 'Map', 'Squad', 'Status', 'Settings'];
   static const _icons = [
@@ -87,6 +96,9 @@ class _MainShellState extends State<MainShell> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    _authProvider = context.read<AuthProvider>();
+    _authProvider.addListener(_syncPresence);
     _screens = [
       _HomeScreen(
         onSquadTap: () => setState(() => _selectedIndex = 2),
@@ -97,6 +109,34 @@ class _MainShellState extends State<MainShell> {
       const StatsScreen(),
       const SettingsScreen(),
     ];
+    _syncPresence();
+  }
+
+  void _syncPresence() {
+    _presenceTimer?.cancel();
+    final isOnline = _isForeground && _authProvider.currentUser != null;
+    unawaited(_authProvider.setPresence(isOnline));
+    if (isOnline) {
+      _presenceTimer = Timer.periodic(
+        const Duration(minutes: 1),
+        (_) => unawaited(_authProvider.setPresence(true)),
+      );
+    }
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    _isForeground = state == AppLifecycleState.resumed;
+    _syncPresence();
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    _presenceTimer?.cancel();
+    _authProvider.removeListener(_syncPresence);
+    unawaited(_authProvider.setPresence(false));
+    super.dispose();
   }
 
   @override
@@ -152,9 +192,36 @@ class _HomeScreen extends StatelessWidget {
     final friends = currentUser == null
         ? const <UserModel>[]
         : community.friendsFor(
-            currentUser.email,
+            currentUser.uid ?? currentUser.email,
             context.watch<AuthProvider>().registeredUsers,
           );
+    Future<void> openFriendChat(UserModel friend) async {
+      if (friend.uid == null) return;
+      try {
+        final conversationId = await ChatService().openDirectConversation(
+          friend.uid!,
+          otherUserName: friend.name,
+        );
+        if (!context.mounted) return;
+        await Navigator.push<void>(
+          context,
+          MaterialPageRoute<void>(
+            builder: (_) => ChatScreen(
+              conversationId: conversationId,
+              title: friend.name,
+              subtitle: 'Friend',
+              friendUserId: friend.uid,
+            ),
+          ),
+        );
+      } catch (error) {
+        if (!context.mounted) return;
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Unable to open chat: $error')));
+      }
+    }
+
     final today = DateTime.now();
     final todayRides = tracking.completedRides
         .where(
@@ -185,6 +252,14 @@ class _HomeScreen extends StatelessWidget {
           style: TextStyle(color: AppColors.themedText),
         ),
         actions: [
+          IconButton(
+            tooltip: 'Chats',
+            icon: const Icon(Icons.chat_bubble_outline),
+            onPressed: () => Navigator.push<void>(
+              context,
+              MaterialPageRoute<void>(builder: (_) => const ChatsScreen()),
+            ),
+          ),
           IconButton(
             icon: const Icon(Icons.notifications_outlined),
             onPressed: () {},
@@ -347,7 +422,7 @@ class _HomeScreen extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      'No friends added yet',
+                      'No friends yet.',
                       style: TextStyle(
                         color: AppColors.themedText,
                         fontWeight: FontWeight.w600,
@@ -355,7 +430,7 @@ class _HomeScreen extends StatelessWidget {
                     ),
                     const SizedBox(height: 6),
                     Text(
-                      'Add riders to start building your riding network.',
+                      'Add riders to build your riding network.',
                       style: TextStyle(color: AppColors.themedGrey),
                     ),
                   ],
@@ -383,23 +458,25 @@ class _HomeScreen extends StatelessWidget {
                           friends[index].name,
                           style: TextStyle(color: AppColors.themedText),
                         ),
-                        trailing: Icon(
-                          Icons.chevron_right,
-                          color: AppColors.themedGrey,
+                        subtitle: friends[index].uid == null
+                            ? const Text('Friend')
+                            : FriendPresenceLabel(userId: friends[index].uid!),
+                        trailing: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            IconButton(
+                              tooltip: 'Message friend',
+                              icon: const Icon(Icons.chat_bubble_outline),
+                              color: AppColors.orange,
+                              onPressed: () => openFriendChat(friends[index]),
+                            ),
+                            Icon(
+                              Icons.chevron_right,
+                              color: AppColors.themedGrey,
+                            ),
+                          ],
                         ),
-                        onTap: () => showDialog<void>(
-                          context: context,
-                          builder: (context) => AlertDialog(
-                            title: Text(friends[index].name),
-                            content: Text(friends[index].email),
-                            actions: [
-                              TextButton(
-                                onPressed: () => Navigator.pop(context),
-                                child: const Text('Close'),
-                              ),
-                            ],
-                          ),
-                        ),
+                        onTap: () => openFriendChat(friends[index]),
                       ),
                       if (index < friends.length - 1)
                         Divider(

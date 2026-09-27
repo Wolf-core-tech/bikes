@@ -195,7 +195,7 @@ class _SquadScreenState extends State<SquadScreen>
           ),
           const SizedBox(height: 24),
           Text(
-            'No Groups Yet',
+            'You have not joined a squad yet.',
             style: TextStyle(
               color: AppColors.themedText,
               fontSize: 22,
@@ -204,7 +204,7 @@ class _SquadScreenState extends State<SquadScreen>
           ),
           const SizedBox(height: 8),
           Text(
-            'Create a group to manage your\nrider formation',
+            'Join or create a squad to access group chat.',
             textAlign: TextAlign.center,
             style: TextStyle(color: AppColors.themedGrey, fontSize: 14),
           ),

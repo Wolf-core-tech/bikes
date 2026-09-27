@@ -52,7 +52,7 @@ void main() {
     );
 
     expect(find.text('No ride recorded today'), findsOneWidget);
-    expect(find.text('No friends added yet'), findsOneWidget);
+    expect(find.text('No friends yet.'), findsOneWidget);
     expect(find.text('No squad yet'), findsOneWidget);
     expect(find.text('Add Rider'), findsOneWidget);
     expect(find.text('Start Ride'), findsOneWidget);

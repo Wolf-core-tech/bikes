@@ -1,4 +1,7 @@
 import 'package:flutter/foundation.dart';
+import 'dart:async';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'dart:convert';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../models/rider_model.dart';
@@ -8,12 +11,25 @@ class SquadProvider extends ChangeNotifier {
   final List<RiderGroup> _groups = [];
   RiderGroup? _activeGroup;
   final List<RideRecord> _rideRecords = [];
-  final Map<String, List<SquadChatMessage>> _chatMessagesByGroup = {};
   static const _joinedMembersKey = 'persisted_squad_members';
+  FirebaseFirestore get _firestore => FirebaseFirestore.instance;
+  StreamSubscription<User?>? _authSubscription;
 
-  // Simulate current logged-in user as leader
-  final String currentUserId = 'user_001';
-  final String currentUserName = 'You (Leader)';
+  String get currentUserId {
+    try {
+      return FirebaseAuth.instance.currentUser?.uid ?? 'user_001';
+    } catch (_) {
+      return 'user_001';
+    }
+  }
+
+  String get currentUserName {
+    try {
+      return FirebaseAuth.instance.currentUser?.displayName ?? 'You (Leader)';
+    } catch (_) {
+      return 'You (Leader)';
+    }
+  }
 
   List<RiderGroup> get groups => _groups;
   RiderGroup? get activeGroup => _activeGroup;
@@ -21,6 +37,68 @@ class SquadProvider extends ChangeNotifier {
 
   SquadProvider() {
     _loadPersistedMembers();
+    try {
+      _authSubscription = FirebaseAuth.instance.authStateChanges().listen(
+        _loadRemoteGroups,
+      );
+    } catch (_) {}
+  }
+
+  @override
+  void dispose() {
+    unawaited(_authSubscription?.cancel());
+    super.dispose();
+  }
+
+  Future<void> _loadRemoteGroups(User? user) async {
+    if (user == null) return;
+    final links = await _firestore
+        .collection('users')
+        .doc(user.uid)
+        .collection('squads')
+        .get();
+    for (final link in links.docs) {
+      await loadJoinedGroup(link.id);
+    }
+  }
+
+  Future<void> loadJoinedGroup(String groupId) async {
+    final squadRef = _firestore.collection('squads').doc(groupId);
+    final squadDoc = await squadRef.get();
+    if (!squadDoc.exists) return;
+    final data = squadDoc.data()!;
+    final kindName = data['kind'] as String? ?? SquadKind.squad.name;
+    final kind = SquadKind.values.firstWhere(
+      (value) => value.name == kindName,
+      orElse: () => SquadKind.squad,
+    );
+    final memberDocs = await squadRef.collection('members').get();
+    final members = memberDocs.docs.map((document) {
+      final member = document.data();
+      final roleName = member['role'] as String? ?? RiderRole.midRider.name;
+      final role = RiderRole.values.firstWhere(
+        (value) => value.name == roleName,
+        orElse: () => RiderRole.midRider,
+      );
+      return Rider(
+        id: document.id,
+        name: member['name'] as String? ?? 'Rider',
+        role: role,
+        isCurrentUser: document.id == currentUserId,
+      );
+    }).toList();
+    if (members.isEmpty) return;
+    final group = RiderGroup(
+      id: groupId,
+      name: data['name'] as String? ?? 'Squad',
+      leaderId: data['ownerId'] as String,
+      members: members,
+      kind: kind,
+    );
+    _groups.removeWhere((existing) => existing.id == groupId);
+    _groups.add(group);
+    _activeGroup ??= group;
+    notifyListeners();
   }
 
   Future<void> _loadPersistedMembers() async {
@@ -104,9 +182,99 @@ class SquadProvider extends ChangeNotifier {
     );
     _groups.add(group);
     _activeGroup = group;
-    _chatMessagesByGroup[group.id] = [];
+    _createRemoteGroup(group);
     notifyListeners();
     return group;
+  }
+
+  Future<void> _createRemoteGroup(RiderGroup group) async {
+    try {
+      final batch = FirebaseFirestore.instance.batch();
+      final squad = FirebaseFirestore.instance
+          .collection('squads')
+          .doc(group.id);
+      batch.set(squad, {
+        'name': group.name,
+        'kind': group.kind.name,
+        'ownerId': currentUserId,
+        'createdAt': FieldValue.serverTimestamp(),
+      });
+      batch.set(squad.collection('members').doc(currentUserId), {
+        'uid': currentUserId,
+        'name': currentUserName,
+        'role': 'leader',
+        'joinedAt': FieldValue.serverTimestamp(),
+      });
+      batch.set(
+        _firestore
+            .collection('users')
+            .doc(currentUserId)
+            .collection('squads')
+            .doc(group.id),
+        {'squadId': group.id, 'name': group.name},
+      );
+      await batch.commit();
+    } catch (_) {}
+  }
+
+  Future<void> _deleteRemoteGroup(String groupId) async {
+    final squadRef = _firestore.collection('squads').doc(groupId);
+    final conversationRef = _firestore
+        .collection('conversations')
+        .doc('squad_$groupId');
+    final conversation = await conversationRef.get();
+    if (conversation.exists) {
+      await conversationRef.delete();
+    }
+    final members = await squadRef.collection('members').get();
+    for (var index = 0; index < members.docs.length; index += 200) {
+      final batch = _firestore.batch();
+      for (final member in members.docs.skip(index).take(200)) {
+        batch.delete(member.reference);
+        batch.delete(
+          _firestore
+              .collection('users')
+              .doc(member.id)
+              .collection('squads')
+              .doc(groupId),
+        );
+      }
+      await batch.commit();
+    }
+    final batch = _firestore.batch();
+    batch.delete(squadRef);
+    await batch.commit();
+  }
+
+  Future<void> _removeRemoteMember(String groupId, String riderId) async {
+    final squadRef = _firestore.collection('squads').doc(groupId);
+    final conversationRef = _firestore
+        .collection('conversations')
+        .doc('squad_$groupId');
+    final conversation = await conversationRef.get();
+    final batch = _firestore.batch();
+    batch.delete(squadRef.collection('members').doc(riderId));
+    batch.delete(
+      _firestore
+          .collection('users')
+          .doc(riderId)
+          .collection('squads')
+          .doc(groupId),
+    );
+    if (conversation.exists) {
+      final data = conversation.data()!;
+      final participants = List<String>.from(
+        data['participants'] as List? ?? [],
+      )..remove(riderId);
+      final unreadCounts = Map<String, dynamic>.from(
+        data['unreadCounts'] as Map? ?? const {},
+      )..remove(riderId);
+      batch.update(conversationRef, {
+        'participants': participants,
+        'unreadCounts': unreadCounts,
+      });
+    }
+    await batch.commit();
   }
 
   void setActiveGroup(RiderGroup group) {
@@ -136,6 +304,7 @@ class SquadProvider extends ChangeNotifier {
     if (!group.isLeader(currentUserId)) return;
     if (riderId == currentUserId) return; // cannot remove self
     group.members.removeWhere((m) => m.id == riderId);
+    _removeRemoteMember(groupId, riderId).ignore();
     notifyListeners();
   }
 
@@ -169,38 +338,13 @@ class SquadProvider extends ChangeNotifier {
     if (!group.isLeader(currentUserId)) return false;
 
     _groups.removeWhere((g) => g.id == groupId);
-    _chatMessagesByGroup.remove(groupId);
+    _deleteRemoteGroup(groupId).ignore();
 
     // If the deleted group was active, select another group or set to null
     if (_activeGroup?.id == groupId) {
       _activeGroup = _groups.isNotEmpty ? _groups.first : null;
     }
 
-    notifyListeners();
-    return true;
-  }
-
-  List<SquadChatMessage> getChatMessages(String groupId) {
-    return List.unmodifiable(_chatMessagesByGroup[groupId] ?? []);
-  }
-
-  bool sendChatMessage(String groupId, String text) {
-    final group = _getGroup(groupId);
-    final messageText = text.trim();
-    if (group == null || messageText.isEmpty) return false;
-    if (!group.members.any((member) => member.id == currentUserId)) {
-      return false;
-    }
-
-    final message = SquadChatMessage(
-      id: 'msg_${DateTime.now().microsecondsSinceEpoch}',
-      groupId: groupId,
-      senderId: currentUserId,
-      senderName: currentUserName,
-      text: messageText,
-      sentAt: DateTime.now(),
-    );
-    _chatMessagesByGroup.putIfAbsent(groupId, () => []).add(message);
     notifyListeners();
     return true;
   }
@@ -236,6 +380,21 @@ class SquadProvider extends ChangeNotifier {
     _activeGroup = group;
     notifyListeners();
     _persistJoinedMembers();
+    return true;
+  }
+
+  Future<bool> leaveGroup(String groupId) async {
+    final group = _getGroup(groupId);
+    if (group == null || group.leaderId == currentUserId) return false;
+    final wasMember = group.members.any((member) => member.id == currentUserId);
+    if (!wasMember) return false;
+    await _removeRemoteMember(groupId, currentUserId);
+    _groups.removeWhere((candidate) => candidate.id == groupId);
+    if (_activeGroup?.id == groupId) {
+      _activeGroup = _groups.isNotEmpty ? _groups.first : null;
+    }
+    _persistJoinedMembers();
+    notifyListeners();
     return true;
   }
 
@@ -284,11 +443,11 @@ class SquadProvider extends ChangeNotifier {
     // Calculate totals
     final totalDistance = userRides.fold<double>(
       0,
-      (sum, ride) => sum + ride.distanceKm,
+      (total, ride) => total + ride.distanceKm,
     );
     final totalDuration = userRides.fold<int>(
       0,
-      (sum, ride) => sum + ride.durationMinutes,
+      (total, ride) => total + ride.durationMinutes,
     );
 
     // Count rides per group
@@ -311,11 +470,11 @@ class SquadProvider extends ChangeNotifier {
       if (groupRides.isNotEmpty) {
         final groupDistance = groupRides.fold<double>(
           0,
-          (sum, ride) => sum + ride.distanceKm,
+          (total, ride) => total + ride.distanceKm,
         );
         final groupDuration = groupRides.fold<int>(
           0,
-          (sum, ride) => sum + ride.durationMinutes,
+          (total, ride) => total + ride.durationMinutes,
         );
 
         // Role distribution in this group
@@ -360,11 +519,11 @@ class SquadProvider extends ChangeNotifier {
       if (groupRides.isNotEmpty) {
         final totalDistance = groupRides.fold<double>(
           0,
-          (sum, ride) => sum + ride.distanceKm,
+          (total, ride) => total + ride.distanceKm,
         );
         final totalDuration = groupRides.fold<int>(
           0,
-          (sum, ride) => sum + ride.durationMinutes,
+          (total, ride) => total + ride.durationMinutes,
         );
 
         // Count role distribution in this group

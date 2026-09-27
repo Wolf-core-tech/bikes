@@ -1,6 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:url_launcher/url_launcher.dart';
+import '../screens/chat_screen.dart';
+import '../services/chat_service.dart';
+import '../../providers/auth_provider.dart';
+import '../../providers/community_provider.dart';
+import '../../models/user_model.dart';
 import '../../providers/squad_provider.dart';
 import '../../models/rider_model.dart';
 import '../../theme/app_theme.dart';
@@ -117,6 +122,42 @@ class _GroupDetailScreenState extends State<GroupDetailScreen>
         ],
       ),
     );
+  }
+
+  Future<void> _leaveSquad(
+    BuildContext context,
+    SquadProvider squad,
+    RiderGroup group,
+  ) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        backgroundColor: AppColors.themedSurface,
+        title: const Text('Leave Squad?'),
+        content: Text('You will lose access to ${group.name} chat.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(dialogContext, true),
+            child: const Text('Leave'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !context.mounted) return;
+    try {
+      final left = await squad.leaveGroup(group.id);
+      if (!context.mounted) return;
+      if (left) Navigator.pop(context);
+    } catch (error) {
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Unable to leave squad: $error')));
+    }
   }
 
   void _showRolePickerSheet(
@@ -424,6 +465,12 @@ class _GroupDetailScreenState extends State<GroupDetailScreen>
           appBar: AppBar(
             title: Text(group.name),
             actions: [
+              if (!isLeader)
+                IconButton(
+                  tooltip: 'Leave squad',
+                  icon: const Icon(Icons.logout),
+                  onPressed: () => _leaveSquad(context, squad, group),
+                ),
               IconButton(
                 tooltip: 'Group call',
                 icon: const Icon(Icons.videocam),
@@ -499,6 +546,8 @@ class _MembersTab extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final auth = context.watch<AuthProvider>();
+    final community = context.watch<CommunityProvider>();
     if (group.members.isEmpty) {
       return Center(
         child: Text(
@@ -515,7 +564,13 @@ class _MembersTab extends StatelessWidget {
       itemBuilder: (ctx, i) {
         final rider = group.members[i];
         final isSelf = rider.id == currentUserId;
+        final isFriend =
+            !isSelf && community.areFriends(currentUserId, rider.id);
+        final isRegisteredRider = auth.registeredUsers.any(
+          (user) => user.uid == rider.id,
+        );
         return OrangeCard(
+          onTap: () => _showRiderProfile(ctx, auth, community, rider, isFriend),
           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
           child: Row(
             children: [
@@ -562,10 +617,46 @@ class _MembersTab extends StatelessWidget {
                       ],
                     ),
                     const SizedBox(height: 5),
-                    RoleChip(role: rider.role, compact: true),
+                    Row(
+                      children: [
+                        RoleChip(role: rider.role, compact: true),
+                        if (isFriend) ...[
+                          const SizedBox(width: 6),
+                          const Icon(
+                            Icons.verified_user_outlined,
+                            color: AppColors.success,
+                            size: 14,
+                          ),
+                          const SizedBox(width: 3),
+                          Text(
+                            'Friend',
+                            style: TextStyle(
+                              color: AppColors.success,
+                              fontSize: 11,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                        ],
+                      ],
+                    ),
                   ],
                 ),
               ),
+              if (isFriend)
+                IconButton(
+                  tooltip: 'Message friend',
+                  icon: const Icon(Icons.chat_bubble_outline),
+                  color: AppColors.orange,
+                  onPressed: () => _openDirectChat(ctx, rider),
+                )
+              else if (!isSelf && isRegisteredRider)
+                IconButton(
+                  tooltip: 'Add friend',
+                  icon: const Icon(Icons.person_add_alt_1),
+                  color: AppColors.themedGrey,
+                  onPressed: () =>
+                      _sendFriendRequest(ctx, auth, community, rider),
+                ),
               // Role change button — only leader, and not on self
               if (isLeader && !isSelf) ...[
                 IconButton(
@@ -591,6 +682,160 @@ class _MembersTab extends StatelessWidget {
           ),
         );
       },
+    );
+  }
+
+  Future<void> _openDirectChat(BuildContext context, Rider rider) async {
+    try {
+      final conversationId = await ChatService().openDirectConversation(
+        rider.id,
+        otherUserName: rider.name,
+      );
+      if (!context.mounted) return;
+      await Navigator.push<void>(
+        context,
+        MaterialPageRoute<void>(
+          builder: (_) => ChatScreen(
+            conversationId: conversationId,
+            title: rider.name,
+            subtitle: 'Friend',
+            friendUserId: rider.id,
+          ),
+        ),
+      );
+    } catch (error) {
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Unable to open chat: $error')));
+    }
+  }
+
+  Future<void> _sendFriendRequest(
+    BuildContext context,
+    AuthProvider auth,
+    CommunityProvider community,
+    Rider rider,
+  ) async {
+    final sender = auth.currentUser;
+    UserModel? receiver;
+    for (final user in auth.registeredUsers) {
+      if (user.uid == rider.id) {
+        receiver = user;
+        break;
+      }
+    }
+    if (sender == null || receiver == null) return;
+    final result = await community.sendFriendRequest(
+      sender: sender,
+      receiver: receiver,
+    );
+    if (!context.mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(result)));
+  }
+
+  Future<void> _showRiderProfile(
+    BuildContext context,
+    AuthProvider auth,
+    CommunityProvider community,
+    Rider rider,
+    bool isFriend,
+  ) async {
+    UserModel? profile;
+    for (final user in auth.registeredUsers) {
+      if (user.uid == rider.id) {
+        profile = user;
+        break;
+      }
+    }
+    final requestStatus = community.requestStatus(currentUserId, rider.id);
+    await showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: AppColors.themedSurface,
+      builder: (sheetContext) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(20, 20, 20, 28),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              RiderAvatar(rider: rider, size: 60, showBadge: false),
+              const SizedBox(height: 12),
+              Text(
+                rider.name,
+                style: TextStyle(
+                  color: AppColors.themedText,
+                  fontSize: 18,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                isFriend ? 'Friend' : 'Squad Member',
+                style: TextStyle(color: AppColors.themedGrey),
+              ),
+              const SizedBox(height: 16),
+              if (isFriend)
+                ElevatedButton.icon(
+                  onPressed: () {
+                    Navigator.pop(sheetContext);
+                    _openDirectChat(context, rider);
+                  },
+                  icon: const Icon(Icons.chat_bubble_outline),
+                  label: const Text('Message'),
+                )
+              else if (profile != null)
+                ElevatedButton.icon(
+                  onPressed: requestStatus == 'Send Request'
+                      ? () async {
+                          final sender = auth.currentUser;
+                          if (sender == null) return;
+                          final result = await community.sendFriendRequest(
+                            sender: sender,
+                            receiver: profile!,
+                          );
+                          if (!sheetContext.mounted) return;
+                          Navigator.pop(sheetContext);
+                          ScaffoldMessenger.of(
+                            context,
+                          ).showSnackBar(SnackBar(content: Text(result)));
+                        }
+                      : null,
+                  icon: const Icon(Icons.person_add_alt_1),
+                  label: Text(
+                    requestStatus == 'Send Request'
+                        ? 'Add Friend'
+                        : requestStatus,
+                  ),
+                ),
+              const SizedBox(height: 8),
+              OutlinedButton.icon(
+                onPressed: () {
+                  Navigator.pop(sheetContext);
+                  showDialog<void>(
+                    context: context,
+                    builder: (dialogContext) => AlertDialog(
+                      backgroundColor: AppColors.themedSurface,
+                      title: Text(rider.name),
+                      content: Text(
+                        profile?.email ?? rider.role.displayName,
+                        style: TextStyle(color: AppColors.themedGrey),
+                      ),
+                      actions: [
+                        TextButton(
+                          onPressed: () => Navigator.pop(dialogContext),
+                          child: const Text('Close'),
+                        ),
+                      ],
+                    ),
+                  );
+                },
+                icon: const Icon(Icons.person_outline),
+                label: const Text('View Profile'),
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 
@@ -842,212 +1087,42 @@ class _ChatTab extends StatefulWidget {
 }
 
 class _ChatTabState extends State<_ChatTab> {
-  final TextEditingController _messageController = TextEditingController();
-  final ScrollController _scrollController = ScrollController();
+  late Future<String> _conversationId;
 
   @override
-  void dispose() {
-    _messageController.dispose();
-    _scrollController.dispose();
-    super.dispose();
-  }
-
-  void _sendMessage(SquadProvider squad) {
-    final sent = squad.sendChatMessage(
-      widget.group.id,
-      _messageController.text,
+  void initState() {
+    super.initState();
+    _conversationId = ChatService().openSquadConversation(
+      squadId: widget.group.id,
+      squadName: widget.group.name,
     );
-    if (!sent) return;
-
-    _messageController.clear();
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!_scrollController.hasClients) return;
-      _scrollController.animateTo(
-        _scrollController.position.maxScrollExtent,
-        duration: const Duration(milliseconds: 220),
-        curve: Curves.easeOut,
-      );
-    });
   }
 
   @override
   Widget build(BuildContext context) {
-    return Consumer<SquadProvider>(
-      builder: (context, squad, _) {
-        final messages = squad.getChatMessages(widget.group.id);
-
-        return Column(
-          children: [
-            Expanded(
-              child: messages.isEmpty
-                  ? Center(
-                      child: Text(
-                        'No messages yet.',
-                        style: TextStyle(
-                          color: AppColors.themedGrey,
-                          fontSize: 16,
-                        ),
-                      ),
-                    )
-                  : ListView.separated(
-                      controller: _scrollController,
-                      padding: const EdgeInsets.fromLTRB(16, 16, 16, 12),
-                      itemCount: messages.length,
-                      separatorBuilder: (_, _) => const SizedBox(height: 10),
-                      itemBuilder: (context, index) {
-                        final message = messages[index];
-                        final isMine = message.senderId == squad.currentUserId;
-                        return _ChatBubble(message: message, isMine: isMine);
-                      },
-                    ),
+    return FutureBuilder<String>(
+      future: _conversationId,
+      builder: (context, snapshot) {
+        if (snapshot.hasError) {
+          return Center(
+            child: Text(
+              'Squad chat is available to squad members only.',
+              style: TextStyle(color: AppColors.themedGrey),
+              textAlign: TextAlign.center,
             ),
-            SafeArea(
-              top: false,
-              child: Container(
-                padding: const EdgeInsets.fromLTRB(12, 10, 12, 12),
-                decoration: BoxDecoration(
-                  color: AppColors.themedSurface,
-                  border: Border(
-                    top: BorderSide(
-                      color: AppColors.themedGreyBorder,
-                      width: 1,
-                    ),
-                  ),
-                ),
-                child: Row(
-                  children: [
-                    Expanded(
-                      child: TextField(
-                        controller: _messageController,
-                        minLines: 1,
-                        maxLines: 4,
-                        style: TextStyle(color: AppColors.themedText),
-                        textInputAction: TextInputAction.send,
-                        onSubmitted: (_) => _sendMessage(squad),
-                        decoration: InputDecoration(
-                          hintText: 'Message ${widget.group.name}',
-                          hintStyle: TextStyle(color: AppColors.themedGrey),
-                          filled: true,
-                          fillColor: AppColors.themedCard,
-                          contentPadding: const EdgeInsets.symmetric(
-                            horizontal: 14,
-                            vertical: 12,
-                          ),
-                          enabledBorder: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(14),
-                            borderSide: BorderSide(
-                              color: AppColors.themedGreyBorder,
-                            ),
-                          ),
-                          focusedBorder: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(14),
-                            borderSide: const BorderSide(
-                              color: AppColors.orange,
-                              width: 1.4,
-                            ),
-                          ),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 10),
-                    SizedBox(
-                      width: 48,
-                      height: 48,
-                      child: ElevatedButton(
-                        onPressed: () => _sendMessage(squad),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: AppColors.orange,
-                          foregroundColor: AppColors.themedText,
-                          padding: EdgeInsets.zero,
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(14),
-                          ),
-                        ),
-                        child: const Icon(Icons.send, size: 20),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ],
+          );
+        }
+        if (!snapshot.hasData) {
+          return const Center(child: CircularProgressIndicator());
+        }
+        return ChatScreen(
+          conversationId: snapshot.data!,
+          title: widget.group.name,
+          subtitle: 'Group Chat',
+          embedded: true,
+          isDirectChat: false,
         );
       },
     );
-  }
-}
-
-class _ChatBubble extends StatelessWidget {
-  final SquadChatMessage message;
-  final bool isMine;
-
-  const _ChatBubble({required this.message, required this.isMine});
-
-  @override
-  Widget build(BuildContext context) {
-    return Align(
-      alignment: isMine ? Alignment.centerRight : Alignment.centerLeft,
-      child: ConstrainedBox(
-        constraints: BoxConstraints(
-          maxWidth: MediaQuery.of(context).size.width * 0.76,
-        ),
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-          decoration: BoxDecoration(
-            color: isMine ? AppColors.orange : AppColors.themedCard,
-            borderRadius: BorderRadius.only(
-              topLeft: const Radius.circular(16),
-              topRight: const Radius.circular(16),
-              bottomLeft: Radius.circular(isMine ? 16 : 4),
-              bottomRight: Radius.circular(isMine ? 4 : 16),
-            ),
-            border: Border.all(
-              color: isMine ? AppColors.orange : AppColors.themedGreyBorder,
-              width: 1,
-            ),
-          ),
-          child: Column(
-            crossAxisAlignment: isMine
-                ? CrossAxisAlignment.end
-                : CrossAxisAlignment.start,
-            children: [
-              Text(
-                message.senderName,
-                style: TextStyle(
-                  color: isMine ? AppColors.themedText : AppColors.orange,
-                  fontSize: 11,
-                  fontWeight: FontWeight.w800,
-                ),
-              ),
-              const SizedBox(height: 4),
-              Text(
-                message.text,
-                style: TextStyle(
-                  color: AppColors.themedText,
-                  fontSize: 15,
-                  height: 1.25,
-                ),
-              ),
-              const SizedBox(height: 6),
-              Text(
-                _formatTime(message.sentAt),
-                style: TextStyle(
-                  color: isMine ? AppColors.themedGrey : AppColors.themedGrey,
-                  fontSize: 10,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  String _formatTime(DateTime time) {
-    final hour = time.hour % 12 == 0 ? 12 : time.hour % 12;
-    final minute = time.minute.toString().padLeft(2, '0');
-    final period = time.hour >= 12 ? 'PM' : 'AM';
-    return '$hour:$minute $period';
   }
 }

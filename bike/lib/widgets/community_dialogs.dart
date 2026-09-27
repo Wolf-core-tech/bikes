@@ -40,13 +40,13 @@ class _AddRiderDialogState extends State<_AddRiderDialog> {
     final auth = context.read<AuthProvider>();
     final current = auth.currentUser;
     final community = context.watch<CommunityProvider>();
-    final currentId = current?.email.trim().toLowerCase() ?? '';
+    final currentId = current?.uid ?? current?.email.trim().toLowerCase() ?? '';
     final received = community.receivedRequests(currentId);
     final status = _result == null
         ? 'Send Request'
         : community.requestStatus(
             currentId,
-            _result!.email.trim().toLowerCase(),
+            _result!.uid ?? _result!.email.trim().toLowerCase(),
           );
 
     return AlertDialog(
@@ -164,7 +164,10 @@ class _AddRiderDialogState extends State<_AddRiderDialog> {
 
   void _search() {
     final auth = context.read<AuthProvider>();
-    final currentId = auth.currentUser?.email.trim().toLowerCase() ?? '';
+    final currentId =
+        auth.currentUser?.uid ??
+        auth.currentUser?.email.trim().toLowerCase() ??
+        '';
     setState(() {
       _result = context.read<CommunityProvider>().findUser(
         auth.registeredUsers,
@@ -219,6 +222,7 @@ class _AddRiderDialogState extends State<_AddRiderDialog> {
 
   Future<void> _respond(String requestId, bool accept) async {
     final currentId =
+        context.read<AuthProvider>().currentUser?.uid ??
         context.read<AuthProvider>().currentUser?.email.trim().toLowerCase() ??
         '';
     final message = await context.read<CommunityProvider>().respondToRequest(
@@ -388,12 +392,7 @@ class _JoinSquadDialogState extends State<_JoinSquadDialog> {
           currentUserId: squad.currentUserId,
           isAlreadyMember: (squadId) =>
               squad.isMember(squadId, squad.currentUserId),
-          squadExists: squad.hasGroup,
-          addMember: (groupId) => squad.joinGroup(
-            groupId,
-            riderId: squad.currentUserId,
-            name: user.name,
-          ),
+          addMember: (groupId) => squad.loadJoinedGroup(groupId),
         );
     if (!mounted) return;
     if (message == 'You joined the squad successfully.') {

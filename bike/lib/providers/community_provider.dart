@@ -1,6 +1,9 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:math';
 
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -8,17 +11,23 @@ import '../models/community_models.dart';
 import '../models/user_model.dart';
 
 class CommunityProvider extends ChangeNotifier {
-  static const _requestsKey = 'friend_requests';
   static const _invitationsKey = 'squad_invitations';
-  static const _friendsKey = 'friend_relationships';
 
   List<FriendRequest> _requests = [];
   List<SquadInvitation> _invitations = [];
   Map<String, List<String>> _friends = {};
   bool _loaded = false;
+  FirebaseFirestore get _firestore => FirebaseFirestore.instance;
+  FirebaseAuth get _auth => FirebaseAuth.instance;
+  StreamSubscription<User?>? _authSubscription;
+  final List<StreamSubscription<QuerySnapshot<Map<String, dynamic>>>>
+  _relationshipSubscriptions = [];
 
   CommunityProvider() {
     _load();
+    try {
+      _authSubscription = _auth.authStateChanges().listen(_loadRelationships);
+    } catch (_) {}
   }
 
   List<FriendRequest> get requests => List.unmodifiable(_requests);
@@ -32,35 +41,99 @@ class CommunityProvider extends ChangeNotifier {
       )
       .toList();
 
+  @override
+  void dispose() {
+    unawaited(_authSubscription?.cancel());
+    for (final subscription in _relationshipSubscriptions) {
+      unawaited(subscription.cancel());
+    }
+    super.dispose();
+  }
+
   bool areFriends(String firstId, String secondId) =>
       _friends[firstId]?.contains(secondId) ?? false;
 
   List<UserModel> friendsFor(String userId, List<UserModel> users) {
-    final friendIds = _friends[userId.trim().toLowerCase()] ?? const <String>[];
-    return users
-        .where((user) => friendIds.contains(user.email.trim().toLowerCase()))
-        .toList();
+    final friendIds = _friends[userId.trim()] ?? const <String>[];
+    return users.where((user) => friendIds.contains(_userId(user))).toList();
   }
 
   Future<void> _load() async {
     final prefs = await SharedPreferences.getInstance();
-    _requests = _decodeList(
-      prefs.getString(_requestsKey),
-      FriendRequest.fromJson,
-    );
     _invitations = _decodeList(
       prefs.getString(_invitationsKey),
       SquadInvitation.fromJson,
     );
-    final friendsJson = prefs.getString(_friendsKey);
-    if (friendsJson != null) {
-      final decoded = jsonDecode(friendsJson) as Map<String, dynamic>;
-      _friends = decoded.map(
-        (key, value) => MapEntry(key, List<String>.from(value as List)),
-      );
-    }
     _loaded = true;
     notifyListeners();
+  }
+
+  Future<void> _loadRelationships(User? user) async {
+    for (final subscription in _relationshipSubscriptions) {
+      await subscription.cancel();
+    }
+    _relationshipSubscriptions.clear();
+    if (user == null) {
+      _requests = [];
+      _friends = {};
+      notifyListeners();
+      return;
+    }
+    QuerySnapshot<Map<String, dynamic>>? received;
+    QuerySnapshot<Map<String, dynamic>>? sent;
+    void updateRequests() {
+      final documents = <QueryDocumentSnapshot<Map<String, dynamic>>>[];
+      if (received != null) documents.addAll(received!.docs);
+      if (sent != null) documents.addAll(sent!.docs);
+      _requests = documents
+          .map(
+            (document) =>
+                FriendRequest.fromJson({...document.data(), 'id': document.id}),
+          )
+          .toList();
+      notifyListeners();
+    }
+
+    _relationshipSubscriptions.add(
+      _firestore
+          .collection('friendRequests')
+          .where('receiverId', isEqualTo: user.uid)
+          .where('status', isEqualTo: 'pending')
+          .snapshots()
+          .listen((snapshot) {
+            received = snapshot;
+            updateRequests();
+          }),
+    );
+    _relationshipSubscriptions.add(
+      _firestore
+          .collection('friendRequests')
+          .where('senderId', isEqualTo: user.uid)
+          .where('status', isEqualTo: 'pending')
+          .snapshots()
+          .listen((snapshot) {
+            sent = snapshot;
+            updateRequests();
+          }),
+    );
+    _relationshipSubscriptions.add(
+      _firestore
+          .collection('friendships')
+          .where('members', arrayContains: user.uid)
+          .snapshots()
+          .listen((friendships) {
+            _friends = {
+              user.uid: friendships.docs
+                  .expand(
+                    (document) =>
+                        List<String>.from(document.data()['members'] as List),
+                  )
+                  .where((memberId) => memberId != user.uid)
+                  .toList(),
+            };
+            notifyListeners();
+          }),
+    );
   }
 
   List<T> _decodeList<T>(String? raw, T Function(Map<String, dynamic>) parse) {
@@ -77,16 +150,11 @@ class CommunityProvider extends ChangeNotifier {
   Future<void> _persist() async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(
-      _requestsKey,
-      jsonEncode(_requests.map((request) => request.toJson()).toList()),
-    );
-    await prefs.setString(
       _invitationsKey,
       jsonEncode(
         _invitations.map((invitation) => invitation.toJson()).toList(),
       ),
     );
-    await prefs.setString(_friendsKey, jsonEncode(_friends));
   }
 
   UserModel? findUser(List<UserModel> users, String query, String currentId) {
@@ -105,7 +173,9 @@ class CommunityProvider extends ChangeNotifier {
     }
   }
 
-  String _userId(UserModel user) => user.email.trim().toLowerCase();
+  String _userId(UserModel user) => user.uid?.trim().isNotEmpty == true
+      ? user.uid!.trim()
+      : user.email.trim().toLowerCase();
 
   String requestStatus(String currentId, String otherId) {
     if (areFriends(currentId, otherId)) return 'Friends';
@@ -146,21 +216,21 @@ class CommunityProvider extends ChangeNotifier {
       return 'Friend request already sent.';
     }
     final now = DateTime.now();
-    _requests.add(
-      FriendRequest(
-        id: 'request_${now.microsecondsSinceEpoch}',
-        senderId: senderId,
-        receiverId: receiverId,
-        senderName: sender.name,
-        senderEmail: sender.email,
-        receiverName: receiver.name,
-        receiverEmail: receiver.email,
-        status: FriendRequestStatus.pending,
-        createdAt: now,
-        updatedAt: now,
-      ),
+    final requestRef = _firestore.collection('friendRequests').doc();
+    final request = FriendRequest(
+      id: requestRef.id,
+      senderId: senderId,
+      receiverId: receiverId,
+      senderName: sender.name,
+      senderEmail: sender.email,
+      receiverName: receiver.name,
+      receiverEmail: receiver.email,
+      status: FriendRequestStatus.pending,
+      createdAt: now,
+      updatedAt: now,
     );
-    await _persist();
+    await requestRef.set(request.toJson());
+    _requests.add(request);
     notifyListeners();
     return 'Friend request sent.';
   }
@@ -175,17 +245,33 @@ class CommunityProvider extends ChangeNotifier {
       return 'This request is no longer available.';
     }
     final request = _requests[index];
-    _requests[index] = request.copyWith(
+    final updatedRequest = request.copyWith(
       status: accept
           ? FriendRequestStatus.accepted
           : FriendRequestStatus.rejected,
       updatedAt: DateTime.now(),
     );
+    final batch = _firestore.batch();
+    batch.update(
+      _firestore.collection('friendRequests').doc(requestId),
+      updatedRequest.toJson()..remove('id'),
+    );
+    if (accept) {
+      final members = [request.senderId, request.receiverId]..sort();
+      final friendshipId = '${members[0]}_${members[1]}';
+      batch.set(_firestore.collection('friendships').doc(friendshipId), {
+        'members': members,
+        'accepted': true,
+        'requestId': requestId,
+        'createdAt': FieldValue.serverTimestamp(),
+      });
+    }
+    await batch.commit();
+    _requests[index] = updatedRequest;
     if (accept) {
       _friends.putIfAbsent(request.senderId, () => []).add(request.receiverId);
       _friends.putIfAbsent(request.receiverId, () => []).add(request.senderId);
     }
-    await _persist();
     notifyListeners();
     return accept ? 'Rider added as a friend.' : 'Friend request rejected.';
   }
@@ -218,6 +304,14 @@ class CommunityProvider extends ChangeNotifier {
       status: InvitationStatus.active,
     );
     _invitations.add(invitation);
+    await _firestore.collection('squadInvitations').doc(code).set({
+      'squadId': squadId,
+      'squadName': squadName,
+      'creatorId': creatorId,
+      'status': 'active',
+      'createdAt': Timestamp.fromDate(now),
+      'expiresAt': Timestamp.fromDate(invitation.expiresAt),
+    });
     await _persist();
     notifyListeners();
     return invitation;
@@ -227,30 +321,55 @@ class CommunityProvider extends ChangeNotifier {
     required String code,
     required String currentUserId,
     required bool Function(String squadId) isAlreadyMember,
-    required bool Function(String squadId) squadExists,
-    required void Function(String squadId) addMember,
+    required Future<void> Function(String squadId) addMember,
   }) async {
     final invitationIndex = _invitations.indexWhere(
       (invitation) => invitation.code == code.trim(),
     );
-    if (invitationIndex == -1) return 'Invalid invitation code.';
-    final invitation = _invitations[invitationIndex];
-    if (invitation.status != InvitationStatus.active) {
+    final inviteRef = _firestore
+        .collection('squadInvitations')
+        .doc(code.trim());
+    final inviteSnapshot = await inviteRef.get();
+    if (!inviteSnapshot.exists) return 'Invalid invitation code.';
+    final inviteData = inviteSnapshot.data()!;
+    if (inviteData['status'] != 'active') {
       return 'This invitation code has already been used.';
     }
-    if (invitation.isExpired) return 'This invitation code has expired.';
-    if (!squadExists(invitation.squadId)) return 'This squad does not exist.';
-    if (isAlreadyMember(invitation.squadId)) {
+    final expiresAt = (inviteData['expiresAt'] as Timestamp).toDate();
+    if (DateTime.now().isAfter(expiresAt)) {
+      return 'This invitation code has expired.';
+    }
+    final squadId = inviteData['squadId'] as String;
+    if (isAlreadyMember(squadId)) {
       return 'You are already a member of this squad.';
     }
-    if (invitation.createdBy == currentUserId) {
+    if (inviteData['creatorId'] == currentUserId) {
       return 'You cannot join your own squad invitation.';
     }
 
-    addMember(invitation.squadId);
-    _invitations[invitationIndex] = invitation.copyWith(
-      status: InvitationStatus.used,
+    final batch = _firestore.batch();
+    batch.update(inviteRef, {'status': 'used', 'claimedBy': currentUserId});
+    batch.set(
+      _firestore
+          .collection('squads')
+          .doc(squadId)
+          .collection('members')
+          .doc(currentUserId),
+      {
+        'uid': currentUserId,
+        'name': _auth.currentUser?.displayName ?? 'Rider',
+        'role': 'midRider',
+        'invitationCode': code.trim(),
+        'joinedAt': FieldValue.serverTimestamp(),
+      },
     );
+    await batch.commit();
+    if (invitationIndex != -1) {
+      _invitations[invitationIndex] = _invitations[invitationIndex].copyWith(
+        status: InvitationStatus.used,
+      );
+    }
+    await addMember(squadId);
     await _persist();
     notifyListeners();
     return 'You joined the squad successfully.';
