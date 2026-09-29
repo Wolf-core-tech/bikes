@@ -24,6 +24,7 @@ import 'firebase_options.dart';
 import 'screens/chat_screen.dart';
 import 'screens/chats_screen.dart';
 import 'services/chat_service.dart';
+import 'screens/expenses_screen.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -314,6 +315,33 @@ class _HomeScreen extends StatelessWidget {
                   ],
                 ),
               ],
+            ),
+
+            const SizedBox(height: 20),
+
+            // ── Top Action: Expenses ──
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton.icon(
+                onPressed: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (_) => const ExpensesScreen()),
+                  );
+                },
+                icon: const Icon(Icons.receipt_long),
+                label: const Text('Manage Expenses', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.orange.withOpacity(0.15),
+                  foregroundColor: AppColors.orange,
+                  elevation: 0,
+                  minimumSize: const Size.fromHeight(52),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(16),
+                    side: BorderSide(color: AppColors.orange.withOpacity(0.5), width: 1.5),
+                  ),
+                ),
+              ),
             ),
 
             const SizedBox(height: 24),

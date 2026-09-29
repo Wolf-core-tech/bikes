@@ -27,6 +27,23 @@ class UserModel {
     this.bikeRegistration,
   });
 
+  /// Used for Firestore — password is NEVER stored in the cloud
+  Map<String, dynamic> toFirestoreMap() {
+    return {
+      'uid': uid,
+      'name': name,
+      'email': email,
+      'phone': phone,
+      'bikeStatus': bikeStatus,
+      'bikeBrand': bikeBrand,
+      'bikeModel': bikeModel,
+      'bikeCc': bikeCc,
+      'bikeYear': bikeYear,
+      'bikeRegistration': bikeRegistration,
+    };
+  }
+
+  /// Used for local SharedPreferences cache (includes password for local auth)
   Map<String, dynamic> toMap() {
     return {
       'uid': uid,
