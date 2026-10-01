@@ -19,6 +19,7 @@ import 'theme/app_theme.dart';
 import 'providers/community_provider.dart';
 import 'widgets/community_dialogs.dart';
 import 'widgets/friend_presence_label.dart';
+import 'widgets/notifications_dialog.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'firebase_options.dart';
 import 'screens/chat_screen.dart';
@@ -261,9 +262,30 @@ class _HomeScreen extends StatelessWidget {
               MaterialPageRoute<void>(builder: (_) => const ChatsScreen()),
             ),
           ),
-          IconButton(
-            icon: const Icon(Icons.notifications_outlined),
-            onPressed: () {},
+          Stack(
+            alignment: Alignment.center,
+            children: [
+              IconButton(
+                icon: const Icon(Icons.notifications_outlined),
+                onPressed: () => showNotificationsDialog(context),
+              ),
+              if (community.receivedRequests(currentUser?.uid ?? currentUser?.email ?? '').isNotEmpty)
+                Positioned(
+                  right: 12,
+                  top: 12,
+                  child: Container(
+                    padding: const EdgeInsets.all(4),
+                    decoration: const BoxDecoration(
+                      color: Colors.red,
+                      shape: BoxShape.circle,
+                    ),
+                    constraints: const BoxConstraints(
+                      minWidth: 8,
+                      minHeight: 8,
+                    ),
+                  ),
+                ),
+            ],
           ),
         ],
       ),

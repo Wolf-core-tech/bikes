@@ -68,6 +68,33 @@ class _LoginScreenState extends State<LoginScreen> {
     if (!mounted) return;
 
     if (errorMessage != null) {
+      if (errorMessage == 'unverified_email') {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: const Text('Please verify your email to log in.'),
+            backgroundColor: Colors.orange.shade800,
+            behavior: SnackBarBehavior.floating,
+            duration: const Duration(seconds: 6),
+            action: SnackBarAction(
+              label: 'RESEND',
+              textColor: Colors.white,
+              onPressed: () async {
+                final resendError = await authProvider.resendVerificationEmail(email, password);
+                if (!mounted) return;
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text(resendError ?? 'Verification link resent! Check your inbox.'),
+                    backgroundColor: resendError == null ? Colors.green : Colors.redAccent,
+                    behavior: SnackBarBehavior.floating,
+                  ),
+                );
+              },
+            ),
+          ),
+        );
+        return;
+      }
+
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(errorMessage),

@@ -134,6 +134,36 @@ class CommunityProvider extends ChangeNotifier {
             notifyListeners();
           }),
     );
+
+    QuerySnapshot<Map<String, dynamic>>? receivedByEmail;
+    void updateRequestsByEmail() {
+      if (receivedByEmail == null) return;
+      final existing = _requests.map((r) => r.id).toSet();
+      final extra = receivedByEmail!.docs
+          .where((d) => !existing.contains(d.id))
+          .map((document) =>
+              FriendRequest.fromJson({...document.data(), 'id': document.id}))
+          .toList();
+      if (extra.isNotEmpty) {
+        _requests = [..._requests, ...extra];
+        notifyListeners();
+      }
+    }
+
+    // Also listen by receiverEmail so users with stub IDs still see requests
+    if (user.email != null) {
+      _relationshipSubscriptions.add(
+        _firestore
+            .collection('friendRequests')
+            .where('receiverEmail', isEqualTo: user.email)
+            .where('status', isEqualTo: 'pending')
+            .snapshots()
+            .listen((snapshot) {
+              receivedByEmail = snapshot;
+              updateRequestsByEmail();
+            }),
+      );
+    }
   }
 
   List<T> _decodeList<T>(String? raw, T Function(Map<String, dynamic>) parse) {
@@ -157,20 +187,51 @@ class CommunityProvider extends ChangeNotifier {
     );
   }
 
-  UserModel? findUser(List<UserModel> users, String query, String currentId) {
+  Future<UserModel?> searchUser(String query, String currentId) async {
     final normalized = query.trim().toLowerCase();
     if (normalized.isEmpty) return null;
+
+    // 1. Direct Firestore query by exact email
     try {
-      return users.firstWhere((user) {
-        final userId = _userId(user);
-        return userId != currentId &&
-            (user.email.toLowerCase() == normalized ||
-                user.name.toLowerCase() == normalized ||
-                user.name.toLowerCase().contains(normalized));
-      });
-    } catch (_) {
-      return null;
+      final byEmail = await _firestore
+          .collection('users')
+          .where('email', isEqualTo: query.trim())
+          .limit(1)
+          .get();
+      if (byEmail.docs.isNotEmpty) {
+        final doc = byEmail.docs.first;
+        if (doc.id == currentId) throw Exception('You cannot add yourself.');
+        return UserModel.fromMap({...doc.data(), 'uid': doc.id, 'password': ''});
+      }
+    } catch (e) {
+      if (e.toString().contains('cannot add yourself')) rethrow;
     }
+
+    // 2. Case-insensitive scan of all Firestore users
+    try {
+      final snapshot = await _firestore.collection('users').get();
+      final freshUsers = snapshot.docs.map((doc) {
+        return UserModel.fromMap({...doc.data(), 'uid': doc.id, 'password': ''});
+      }).toList();
+
+      final foundUser = freshUsers.firstWhere((user) {
+        return user.email.toLowerCase() == normalized ||
+            user.name.toLowerCase() == normalized ||
+            user.name.toLowerCase().contains(normalized);
+      });
+      if (_userId(foundUser) == currentId) {
+        throw Exception('You cannot add yourself.');
+      }
+      return foundUser;
+    } on StateError {
+      // Not found in Firestore — fall through to Auth check
+    } catch (e) {
+      if (e.toString().contains('cannot add yourself')) rethrow;
+    }
+
+    // 3. Not found in Firestore. The rider may have registered before the
+    //    database was created. Ask them to open the app and log in once.
+    return null;
   }
 
   String _userId(UserModel user) => user.uid?.trim().isNotEmpty == true

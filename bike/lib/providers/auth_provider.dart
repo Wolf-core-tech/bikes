@@ -122,6 +122,14 @@ class AuthProvider extends ChangeNotifier {
         bikeYear: data['bikeYear'] as String?,
         bikeRegistration: data['bikeRegistration'] as String?,
       );
+      
+      if (!doc.exists) {
+        await _firestore.collection('users').doc(firebaseUser.uid).set({
+          ...profile.toFirestoreMap(),
+          'createdAt': FieldValue.serverTimestamp(),
+        });
+      }
+
       _registeredUsers = await _loadFirestoreUsers();
     } catch (_) {
       // Firestore failed — restore from local cache
@@ -185,6 +193,11 @@ class AuthProvider extends ChangeNotifier {
       final firebaseUser = credential.user!;
       await firebaseUser.updateDisplayName(newUser.name);
 
+      // Send Email Verification
+      if (!firebaseUser.emailVerified) {
+        await firebaseUser.sendEmailVerification();
+      }
+
       final profile = UserModel(
         uid: firebaseUser.uid,
         name: newUser.name,
@@ -238,6 +251,13 @@ class AuthProvider extends ChangeNotifier {
         email: email.trim(),
         password: password,
       );
+      
+      // Check if email is verified
+      if (credential.user != null && !credential.user!.emailVerified) {
+        await _auth.signOut();
+        return 'unverified_email';
+      }
+
       // Firebase now holds the session — it will persist across restarts
       await _buildUserFromFirebase(credential.user!);
       return null;
@@ -286,6 +306,31 @@ class AuthProvider extends ChangeNotifier {
     }
   }
 
+  // ─── RESEND VERIFICATION EMAIL ─────────────────────────────────────────────
+
+  Future<String?> resendVerificationEmail(String email, String password) async {
+    try {
+      final credential = await _auth.signInWithEmailAndPassword(
+        email: email.trim(),
+        password: password,
+      );
+      if (credential.user != null && !credential.user!.emailVerified) {
+        await credential.user!.sendEmailVerification();
+        await _auth.signOut();
+        return null; // Successfully sent
+      }
+      if (credential.user != null && credential.user!.emailVerified) {
+        await _auth.signOut();
+        return 'Email is already verified.';
+      }
+      return 'User not found.';
+    } on FirebaseAuthException catch (e) {
+      return e.message ?? 'Unable to resend verification email.';
+    } catch (_) {
+      return 'Unable to resend verification email. Please try again.';
+    }
+  }
+
   // ─── UPDATE PROFILE ────────────────────────────────────────────────────────
 
   Future<void> updateCurrentUser(UserModel updatedUser) async {
@@ -320,7 +365,7 @@ class AuthProvider extends ChangeNotifier {
 
   Future<void> logout() async {
     try {
-      await setPresence(false);
+      setPresence(false); // Do not await to prevent blocking if offline
       await _auth.signOut();
     } catch (_) {}
     // Clear local-account session key (Firebase session cleared automatically)
