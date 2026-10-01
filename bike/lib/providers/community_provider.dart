@@ -55,7 +55,11 @@ class CommunityProvider extends ChangeNotifier {
 
   List<UserModel> friendsFor(String userId, List<UserModel> users) {
     final friendIds = _friends[userId.trim()] ?? const <String>[];
-    return users.where((user) => friendIds.contains(_userId(user))).toList();
+    return users.where((user) {
+      final matchesUid = user.uid != null && friendIds.contains(user.uid!.trim());
+      final matchesEmail = friendIds.contains(user.email.trim().toLowerCase());
+      return matchesUid || matchesEmail;
+    }).toList();
   }
 
   Future<void> _load() async {
@@ -335,6 +339,34 @@ class CommunityProvider extends ChangeNotifier {
     }
     notifyListeners();
     return accept ? 'Rider added as a friend.' : 'Friend request rejected.';
+  }
+
+  Future<void> removeFriend(String currentId, UserModel friend) async {
+    // Find any friendship document containing both users
+    final query = await _firestore
+        .collection('friendships')
+        .where('members', arrayContains: currentId)
+        .get();
+
+    final batch = _firestore.batch();
+    for (final doc in query.docs) {
+      final members = List<String>.from(doc.data()['members'] as List);
+      final matchesUid = friend.uid != null && members.contains(friend.uid!.trim());
+      final matchesEmail = members.contains(friend.email.trim().toLowerCase());
+      if (matchesUid || matchesEmail) {
+        batch.delete(doc.reference);
+      }
+    }
+    await batch.commit();
+
+    // Optimistically update local state
+    if (friend.uid != null) {
+      _friends[currentId]?.remove(friend.uid!.trim());
+      _friends[friend.uid!.trim()]?.remove(currentId);
+    }
+    _friends[currentId]?.remove(friend.email.trim().toLowerCase());
+    _friends[friend.email.trim().toLowerCase()]?.remove(currentId);
+    notifyListeners();
   }
 
   Future<SquadInvitation> createInvitation({

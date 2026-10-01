@@ -19,18 +19,22 @@ import 'theme/app_theme.dart';
 import 'providers/community_provider.dart';
 import 'widgets/community_dialogs.dart';
 import 'widgets/friend_presence_label.dart';
-import 'widgets/notifications_dialog.dart';
+import 'screens/friends_screen.dart';
+import 'screens/notifications_screen.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'firebase_options.dart';
 import 'screens/chat_screen.dart';
 import 'screens/chats_screen.dart';
 import 'services/chat_service.dart';
+import 'services/notification_service.dart';
 import 'screens/expenses_screen.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
+  
+  await NotificationService().init();
 
   runApp(
     MultiProvider(
@@ -267,21 +271,28 @@ class _HomeScreen extends StatelessWidget {
             children: [
               IconButton(
                 icon: const Icon(Icons.notifications_outlined),
-                onPressed: () => showNotificationsDialog(context),
+                onPressed: () => Navigator.push<void>(
+                  context,
+                  MaterialPageRoute<void>(
+                    builder: (_) => const NotificationsScreen(),
+                  ),
+                ),
               ),
-              if (community.receivedRequests(currentUser?.uid ?? currentUser?.email ?? '').isNotEmpty)
+              if (community
+                  .receivedRequests(
+                    currentUser?.uid ?? currentUser?.email ?? '',
+                  )
+                  .isNotEmpty)
                 Positioned(
-                  right: 12,
-                  top: 12,
+                  right: 8,
+                  top: 8,
                   child: Container(
-                    padding: const EdgeInsets.all(4),
-                    decoration: const BoxDecoration(
+                    width: 10,
+                    height: 10,
+                    decoration: BoxDecoration(
                       color: Colors.red,
                       shape: BoxShape.circle,
-                    ),
-                    constraints: const BoxConstraints(
-                      minWidth: 8,
-                      minHeight: 8,
+                      border: Border.all(color: Colors.white, width: 1.5),
                     ),
                   ),
                 ),
@@ -354,13 +365,13 @@ class _HomeScreen extends StatelessWidget {
                 icon: const Icon(Icons.receipt_long),
                 label: const Text('Manage Expenses', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: AppColors.orange.withOpacity(0.15),
+                  backgroundColor: AppColors.orange.withValues(alpha: 0.15),
                   foregroundColor: AppColors.orange,
                   elevation: 0,
                   minimumSize: const Size.fromHeight(52),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(16),
-                    side: BorderSide(color: AppColors.orange.withOpacity(0.5), width: 1.5),
+                    side: BorderSide(color: AppColors.orange.withValues(alpha: 0.5), width: 1.5),
                   ),
                 ),
               ),
@@ -450,13 +461,52 @@ class _HomeScreen extends StatelessWidget {
             ),
 
             const SizedBox(height: 24),
-            Text(
-              'Friends',
-              style: TextStyle(
-                color: AppColors.themedText,
-                fontSize: 18,
-                fontWeight: FontWeight.w700,
-              ),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  'Friends',
+                  style: TextStyle(
+                    color: AppColors.themedText,
+                    fontSize: 18,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                GestureDetector(
+                  onTap: () => Navigator.push<void>(
+                    context,
+                    MaterialPageRoute<void>(
+                      builder: (_) => const FriendsScreen(),
+                    ),
+                  ),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 12, vertical: 6),
+                    decoration: BoxDecoration(
+                      color: AppColors.orangeGlow,
+                      borderRadius: BorderRadius.circular(20),
+                      border: Border.all(
+                          color: AppColors.orange.withValues(alpha: 0.4)),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          'See All',
+                          style: TextStyle(
+                            color: AppColors.orange,
+                            fontSize: 12,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                        const SizedBox(width: 4),
+                        const Icon(Icons.chevron_right,
+                            color: AppColors.orange, size: 16),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
             ),
             const SizedBox(height: 12),
             if (friends.isEmpty)
@@ -852,7 +902,7 @@ class _LegacyMapTabScreenState extends State<LegacyMapTabScreen> {
                           ),
                         );
 
-                        if (confirmed != true || !mounted) {
+                        if (confirmed != true || !context.mounted) {
                           return;
                         }
 

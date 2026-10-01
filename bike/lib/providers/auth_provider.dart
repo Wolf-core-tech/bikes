@@ -5,6 +5,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../models/user_model.dart';
+import '../services/notification_service.dart';
 
 /// AUTH FLOW:
 /// ─────────────────────────────────────────────────────────────
@@ -260,6 +261,7 @@ class AuthProvider extends ChangeNotifier {
 
       // Firebase now holds the session — it will persist across restarts
       await _buildUserFromFirebase(credential.user!);
+      await NotificationService().updateToken();
       return null;
     } on FirebaseAuthException catch (e) {
       // ② Firebase failed — try local-only account as fallback
@@ -366,6 +368,7 @@ class AuthProvider extends ChangeNotifier {
   Future<void> logout() async {
     try {
       setPresence(false); // Do not await to prevent blocking if offline
+      await NotificationService().removeToken();
       await _auth.signOut();
     } catch (_) {}
     // Clear local-account session key (Firebase session cleared automatically)
