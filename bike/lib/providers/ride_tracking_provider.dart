@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/foundation.dart';
+import 'package:flutter_compass/flutter_compass.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:latlong2/latlong.dart';
 
@@ -10,6 +11,8 @@ import '../services/ride_storage.dart';
 class RideTrackingProvider extends ChangeNotifier {
   final RideStorage _storage;
   StreamSubscription<Position>? _positionSubscription;
+  StreamSubscription<CompassEvent>? _compassSubscription;
+  Timer? _durationTimer;
   final List<RidePoint> _routePoints = [];
   final List<TrackedRide> _completedRides = [];
 
@@ -20,6 +23,7 @@ class RideTrackingProvider extends ChangeNotifier {
   Duration _stoppedDuration = Duration.zero;
   int _stopCount = 0;
   Position? _currentPosition;
+  double _compassHeading = 0.0;
   TrackedRide? _selectedRide;
   String? _errorMessage;
   bool _isLoadingHistory = true;
@@ -34,6 +38,7 @@ class RideTrackingProvider extends ChangeNotifier {
   bool get isLoadingHistory => _isLoadingHistory;
   String? get errorMessage => _errorMessage;
   Position? get currentPosition => _currentPosition;
+  double get compassHeading => _compassHeading;
   List<RidePoint> get routePoints => List.unmodifiable(_routePoints);
   List<TrackedRide> get completedRides => List.unmodifiable(_completedRides);
   TrackedRide? get selectedRide => _selectedRide;
@@ -61,6 +66,8 @@ class RideTrackingProvider extends ChangeNotifier {
       notifyListeners();
       return false;
     }
+
+    _initCompass();
 
     var permission = await Geolocator.checkPermission();
     if (permission == LocationPermission.denied) {
@@ -133,6 +140,8 @@ class RideTrackingProvider extends ChangeNotifier {
     }
 
     await _positionSubscription?.cancel();
+    _durationTimer?.cancel();
+    _initCompass();
     _routePoints.clear();
     _distanceMeters = 0;
     _maximumSpeed = 0;
@@ -150,6 +159,11 @@ class RideTrackingProvider extends ChangeNotifier {
         ),
       );
       _recordPosition(initialPosition);
+      
+      _durationTimer = Timer.periodic(const Duration(seconds: 1), (_) {
+        notifyListeners();
+      });
+
       _positionSubscription =
           Geolocator.getPositionStream(
             locationSettings: const LocationSettings(
@@ -166,6 +180,7 @@ class RideTrackingProvider extends ChangeNotifier {
     } catch (_) {
       _isTracking = false;
       _startTime = null;
+      _durationTimer?.cancel();
       _errorMessage =
           'Unable to get a GPS location. Move outdoors and try again.';
       notifyListeners();
@@ -211,6 +226,7 @@ class RideTrackingProvider extends ChangeNotifier {
   Future<TrackedRide?> stopRide() async {
     if (!_isTracking || _startTime == null || _routePoints.isEmpty) return null;
     await _positionSubscription?.cancel();
+    _durationTimer?.cancel();
     _positionSubscription = null;
     if (_stopStartedAt != null) {
       _stoppedDuration += DateTime.now().difference(_stopStartedAt!);
@@ -272,9 +288,21 @@ class RideTrackingProvider extends ChangeNotifier {
       ? routePoints
       : (_selectedRide?.points ?? const <RidePoint>[]);
 
+  void _initCompass() {
+    _compassSubscription?.cancel();
+    _compassSubscription = FlutterCompass.events?.listen((event) {
+      if (event.heading != null) {
+        _compassHeading = event.heading!;
+        notifyListeners();
+      }
+    });
+  }
+
   @override
   void dispose() {
     _positionSubscription?.cancel();
+    _compassSubscription?.cancel();
+    _durationTimer?.cancel();
     super.dispose();
   }
 }
