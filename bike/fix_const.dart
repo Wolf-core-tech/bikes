@@ -14,7 +14,7 @@ void main() {
 
       if (newContent != content) {
         entity.writeAsStringSync(newContent);
-        print('Updated ${entity.path}');
+        stdout.writeln('Updated ${entity.path}');
       }
     }
   }

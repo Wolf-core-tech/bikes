@@ -13,9 +13,7 @@ class SettingsScreen extends StatelessWidget {
     final appTheme = context.watch<AppTheme>();
 
     return Scaffold(
-      backgroundColor: appTheme.isDarkMode
-          ? AppColors.backgroundDark
-          : AppColors.backgroundLight,
+      backgroundColor: AppColors.themedBackground,
       appBar: AppBar(title: const Text('Settings')),
       body: SingleChildScrollView(
         child: Column(
@@ -75,7 +73,7 @@ class SettingsScreen extends StatelessWidget {
             _SettingsTile(
               icon: Icons.location_on_outlined,
               title: 'Default Location',
-              subtitle: 'Chennai, Tamil Nadu',
+              subtitle: 'Chennai, Tamil nadu',
               trailing: Icon(Icons.chevron_right, color: AppColors.themedGrey),
               onTap: () {},
             ),
@@ -115,12 +113,12 @@ class SettingsScreen extends StatelessWidget {
                     _showLogoutDialog(context);
                   },
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.red.withValues(alpha: 0.15),
-                    foregroundColor: Colors.red,
+                    backgroundColor: AppColors.orange.withValues(alpha: 0.15),
+                    foregroundColor: AppColors.orange,
                     padding: const EdgeInsets.symmetric(vertical: 14),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(12),
-                      side: const BorderSide(color: Colors.red, width: 1),
+                      side: const BorderSide(color: AppColors.orange, width: 1),
                     ),
                   ),
                   icon: const Icon(Icons.logout),
@@ -146,11 +144,14 @@ class SettingsScreen extends StatelessWidget {
         backgroundColor: AppColors.surface,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(18),
-          side: const BorderSide(color: Colors.red, width: 1.2),
+          side: const BorderSide(color: AppColors.orange, width: 1.2),
         ),
         title: const Text(
           'Logout',
-          style: TextStyle(color: Colors.red, fontWeight: FontWeight.w700),
+          style: TextStyle(
+            color: AppColors.orange,
+            fontWeight: FontWeight.w700,
+          ),
         ),
         content: Text(
           'Are you sure you want to logout?',
@@ -166,7 +167,7 @@ class SettingsScreen extends StatelessWidget {
           ),
           ElevatedButton(
             style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.red,
+              backgroundColor: AppColors.orange,
               foregroundColor: Colors.white,
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(10),
@@ -206,7 +207,7 @@ class _SectionHeader extends StatelessWidget {
         alignment: Alignment.centerLeft,
         child: Text(
           title,
-          style: const TextStyle(
+          style: TextStyle(
             color: AppColors.orange,
             fontSize: 12,
             fontWeight: FontWeight.w700,

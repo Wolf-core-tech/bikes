@@ -317,7 +317,7 @@ class _JoinSquadDialogState extends State<_JoinSquadDialog> {
         ),
         if (_message != null) ...[
           const SizedBox(height: 14),
-          Text(_message!, style: const TextStyle(color: Colors.red)),
+          Text(_message!, style: const TextStyle(color: AppColors.orange)),
         ],
       ],
     ),

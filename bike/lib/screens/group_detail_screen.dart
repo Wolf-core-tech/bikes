@@ -60,7 +60,7 @@ class _GroupDetailScreenState extends State<GroupDetailScreen>
         backgroundColor: AppColors.themedSurface,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(18),
-          side: const BorderSide(color: AppColors.orange, width: 1.2),
+          side: BorderSide(color: AppColors.orange, width: 1.2),
         ),
         title: const Text(
           'Add Rider',
@@ -76,14 +76,14 @@ class _GroupDetailScreenState extends State<GroupDetailScreen>
           decoration: InputDecoration(
             hintText: "Rider's name",
             hintStyle: TextStyle(color: AppColors.themedGrey),
-            prefixIcon: const Icon(Icons.person_add, color: AppColors.orange),
+            prefixIcon: Icon(Icons.person_add, color: AppColors.orange),
             enabledBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(12),
               borderSide: BorderSide(color: AppColors.themedGreyBorder),
             ),
             focusedBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(12),
-              borderSide: const BorderSide(color: AppColors.orange, width: 1.5),
+              borderSide: BorderSide(color: AppColors.orange, width: 1.5),
             ),
             filled: true,
             fillColor: AppColors.themedCard,
@@ -298,7 +298,7 @@ class _GroupDetailScreenState extends State<GroupDetailScreen>
               ),
             ),
             if (isSelected)
-              const Icon(Icons.check_circle, color: AppColors.orange, size: 20),
+              Icon(Icons.check_circle, color: AppColors.orange, size: 20),
           ],
         ),
       ),
@@ -351,7 +351,7 @@ class _GroupDetailScreenState extends State<GroupDetailScreen>
                 ),
               ),
               const SizedBox(height: 20),
-              const Icon(Icons.videocam, color: AppColors.orange, size: 34),
+              Icon(Icons.videocam, color: AppColors.orange, size: 34),
               const SizedBox(height: 12),
               Text(
                 'Start Group Call',

@@ -1,13 +1,18 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:firebase_auth/firebase_auth.dart' show FirebaseAuthException;
 import '../models/user_model.dart';
 import '../models/bike_model.dart';
+import '../models/yamaha_model_catalog.dart';
 import '../providers/auth_provider.dart';
 import '../providers/bike_provider.dart';
 import '../theme/app_theme.dart';
+import '../utils/indian_phone_number.dart';
+import '../utils/password_validator.dart';
 import '../widgets/auth_header.dart';
 import '../widgets/bike_brand_selector.dart';
+import '../widgets/uppercase_text_formatter.dart';
 import 'login_screen.dart';
 
 class RegisterScreen extends StatefulWidget {
@@ -32,20 +37,35 @@ class _RegisterScreenState extends State<RegisterScreen> {
   bool _obscurePassword = true;
   String _bikeStatus = 'Don\'t have bike'; // Default selection
   String? _selectedBikeBrand;
+  String? _selectedYamahaModel;
 
   void _register() async {
     final name = _nameController.text.trim();
     final email = _emailController.text.trim();
-    final phone = _phoneController.text.trim();
+    final phoneDigits = _phoneController.text.trim();
     final password = _passwordController.text.trim();
 
-    if (name.isEmpty || email.isEmpty || phone.isEmpty || password.isEmpty) {
+    if (name.isEmpty ||
+        email.isEmpty ||
+        phoneDigits.isEmpty ||
+        password.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text(
             'Please fill in all mandatory personal details (Name, Email, Phone, Password).',
           ),
-          backgroundColor: Colors.redAccent,
+          backgroundColor: AppColors.orange,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+      return;
+    }
+
+    if (!isValidIndianPhoneNumber(phoneDigits)) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Enter a valid 10-digit phone number after +91.'),
+          backgroundColor: AppColors.orange,
           behavior: SnackBarBehavior.floating,
         ),
       );
@@ -56,18 +76,19 @@ class _RegisterScreenState extends State<RegisterScreen> {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('Please enter a valid email address.'),
-          backgroundColor: Colors.redAccent,
+          backgroundColor: AppColors.orange,
           behavior: SnackBarBehavior.floating,
         ),
       );
       return;
     }
 
-    if (password.length < 6) {
+    final passwordError = validatePassword(password);
+    if (passwordError != null) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Password must be at least 6 characters long.'),
-          backgroundColor: Colors.redAccent,
+        SnackBar(
+          content: Text(passwordError),
+          backgroundColor: AppColors.orange,
           behavior: SnackBarBehavior.floating,
         ),
       );
@@ -88,7 +109,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text('Please fill in all mandatory bike specifications.'),
-            backgroundColor: Colors.redAccent,
+            backgroundColor: AppColors.orange,
             behavior: SnackBarBehavior.floating,
           ),
         );
@@ -99,7 +120,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
     final newUser = UserModel(
       name: name,
       email: email,
-      phone: phone,
+      phone: toIndianPhoneNumber(phoneDigits),
       password: password,
       bikeStatus: _bikeStatus,
       bikeBrand: _bikeStatus == 'Have bike' ? _selectedBikeBrand : null,
@@ -122,7 +143,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(error.message ?? 'Unable to create this account.'),
-          backgroundColor: Colors.redAccent,
+          backgroundColor: AppColors.orange,
           behavior: SnackBarBehavior.floating,
         ),
       );
@@ -184,6 +205,58 @@ class _RegisterScreenState extends State<RegisterScreen> {
     super.dispose();
   }
 
+  Widget _buildYamahaModelDropdown() {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 20),
+      child: DropdownButtonFormField<String>(
+        initialValue: _selectedYamahaModel,
+        isExpanded: true,
+        dropdownColor: AppColors.themedCard,
+        style: TextStyle(
+          color: AppColors.themedText,
+          fontSize: 16,
+          fontWeight: FontWeight.w600,
+        ),
+        decoration: InputDecoration(
+          labelText: 'Bike Model *',
+          labelStyle: TextStyle(color: AppColors.themedGrey),
+          prefixIcon: const Icon(Icons.speed, color: AppColors.orange),
+          filled: true,
+          fillColor: AppColors.themedCard,
+          border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(16),
+            borderSide: BorderSide(color: AppColors.themedGreyBorder),
+          ),
+          enabledBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(16),
+            borderSide: BorderSide(color: AppColors.themedGreyBorder),
+          ),
+          focusedBorder: const OutlineInputBorder(
+            borderRadius: BorderRadius.all(Radius.circular(16)),
+            borderSide: BorderSide(color: AppColors.orange, width: 2),
+          ),
+        ),
+        hint: const Text('Select Yamaha model'),
+        items: yamahaModelEngineCc.keys
+            .map(
+              (model) => DropdownMenuItem<String>(
+                value: model,
+                child: Text(model, overflow: TextOverflow.ellipsis),
+              ),
+            )
+            .toList(),
+        onChanged: (model) {
+          if (model == null) return;
+          setState(() {
+            _selectedYamahaModel = model;
+            _bikeModelController.text = model;
+            _bikeCcController.text = yamahaModelEngineCc[model]!;
+          });
+        },
+      ),
+    );
+  }
+
   Widget _buildTextField({
     required TextEditingController controller,
     required String label,
@@ -191,6 +264,10 @@ class _RegisterScreenState extends State<RegisterScreen> {
     bool obscureText = false,
     TextInputType keyboardType = TextInputType.text,
     Widget? suffixIcon,
+    TextCapitalization textCapitalization = TextCapitalization.none,
+    List<TextInputFormatter>? inputFormatters,
+    bool readOnly = false,
+    String? prefixText,
   }) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 20),
@@ -200,7 +277,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
         decoration: InputDecoration(
           labelText: label,
           labelStyle: TextStyle(color: AppColors.themedGrey),
-          prefixIcon: Icon(icon, color: const Color(0xFFE63946)),
+          prefixIcon: Icon(icon, color: AppColors.orange),
+          prefixText: prefixText,
           suffixIcon: suffixIcon,
           filled: true,
           fillColor: AppColors.themedCard,
@@ -214,11 +292,14 @@ class _RegisterScreenState extends State<RegisterScreen> {
           ),
           focusedBorder: OutlineInputBorder(
             borderRadius: BorderRadius.circular(16),
-            borderSide: const BorderSide(color: Color(0xFFE63946), width: 2),
+            borderSide: const BorderSide(color: AppColors.orange, width: 2),
           ),
         ),
         obscureText: obscureText,
         keyboardType: keyboardType,
+        textCapitalization: textCapitalization,
+        inputFormatters: inputFormatters,
+        readOnly: readOnly,
       ),
     );
   }
@@ -274,6 +355,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
                     label: 'Phone Number *',
                     icon: Icons.phone_outlined,
                     keyboardType: TextInputType.phone,
+                    prefixText: '+91',
+                    inputFormatters: [IndianPhoneNumberFormatter()],
                   ),
                   _buildTextField(
                     controller: _passwordController,
@@ -300,7 +383,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                     children: [
                       const Icon(
                         Icons.two_wheeler,
-                        color: Color(0xFFE63946),
+                        color: AppColors.orange,
                         size: 24,
                       ),
                       const SizedBox(width: 8),
@@ -335,7 +418,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                         dropdownColor: AppColors.themedCard,
                         icon: const Icon(
                           Icons.keyboard_arrow_down,
-                          color: Color(0xFFE63946),
+                          color: AppColors.orange,
                         ),
                         style: TextStyle(
                           color: AppColors.themedText,
@@ -375,15 +458,25 @@ class _RegisterScreenState extends State<RegisterScreen> {
                     const SizedBox(height: 16),
                     BikeBrandSelector(
                       selectedBrand: _selectedBikeBrand,
-                      onSelected: (brand) => setState(() {
-                        _selectedBikeBrand = brand;
-                      }),
+                      onSelected: (brand) {
+                        setState(() {
+                          if (_selectedBikeBrand != brand) {
+                            _bikeModelController.clear();
+                            _bikeCcController.clear();
+                            _selectedYamahaModel = null;
+                          }
+                          _selectedBikeBrand = brand;
+                        });
+                      },
                     ),
-                    _buildTextField(
-                      controller: _bikeModelController,
-                      label: 'Bike Model * (e.g., R15, CBR 250R)',
-                      icon: Icons.speed,
-                    ),
+                    if (_selectedBikeBrand == 'Yamaha')
+                      _buildYamahaModelDropdown()
+                    else
+                      _buildTextField(
+                        controller: _bikeModelController,
+                        label: 'Bike Model * (e.g., R15, CBR 250R)',
+                        icon: Icons.speed,
+                      ),
                     Row(
                       children: [
                         Expanded(
@@ -392,6 +485,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                             label: 'Engine CC *',
                             icon: Icons.flash_on,
                             keyboardType: TextInputType.number,
+                            readOnly: _selectedBikeBrand == 'Yamaha',
                           ),
                         ),
                         const SizedBox(width: 16),
@@ -409,6 +503,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
                       controller: _bikeRegistrationController,
                       label: 'Registration Number *',
                       icon: Icons.confirmation_number_outlined,
+                      textCapitalization: TextCapitalization.characters,
+                      inputFormatters: [UppercaseTextFormatter()],
                     ),
                   ],
 
@@ -420,14 +516,12 @@ class _RegisterScreenState extends State<RegisterScreen> {
                     height: 56,
                     decoration: BoxDecoration(
                       gradient: const LinearGradient(
-                        colors: [Color(0xFFE63946), Color(0xFF900C3F)],
+                        colors: [AppColors.orange, AppColors.orange],
                       ),
                       borderRadius: BorderRadius.circular(16),
                       boxShadow: [
                         BoxShadow(
-                          color: const Color(
-                            0xFFE63946,
-                          ).withValues(alpha: 0.35),
+                          color: AppColors.orange.withValues(alpha: 0.35),
                           blurRadius: 16,
                           offset: const Offset(0, 6),
                         ),
@@ -484,7 +578,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                         child: const Text(
                           'Sign In',
                           style: TextStyle(
-                            color: Color(0xFFE63946),
+                            color: AppColors.orange,
                             fontWeight: FontWeight.w800,
                             fontSize: 15,
                           ),

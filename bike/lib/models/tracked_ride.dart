@@ -28,6 +28,7 @@ class RidePoint {
 
 class TrackedRide {
   final String id;
+  final String? rideName;
   final DateTime startTime;
   final DateTime endTime;
   final double startLatitude;
@@ -44,6 +45,7 @@ class TrackedRide {
 
   const TrackedRide({
     required this.id,
+    this.rideName,
     required this.startTime,
     required this.endTime,
     required this.startLatitude,
@@ -65,6 +67,7 @@ class TrackedRide {
 
   Map<String, dynamic> toJson() => {
     'id': id,
+    'rideName': rideName,
     'startTime': startTime.toIso8601String(),
     'endTime': endTime.toIso8601String(),
     'startLatitude': startLatitude,
@@ -82,6 +85,7 @@ class TrackedRide {
 
   factory TrackedRide.fromJson(Map<String, dynamic> json) => TrackedRide(
     id: json['id'] as String,
+    rideName: json['rideName'] as String?,
     startTime: DateTime.parse(json['startTime'] as String),
     endTime: DateTime.parse(json['endTime'] as String),
     startLatitude: (json['startLatitude'] as num).toDouble(),

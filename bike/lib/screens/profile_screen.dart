@@ -1,10 +1,14 @@
 import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
 import '../models/bike_model.dart';
 import '../models/user_model.dart';
 import '../providers/bike_provider.dart';
 import '../providers/auth_provider.dart';
 import '../theme/app_theme.dart';
+import '../utils/indian_phone_number.dart';
+import '../widgets/bike_brand_logo.dart';
+import '../widgets/profile_photo.dart';
 import 'bike_brand_selection_screen.dart';
 import 'login_screen.dart';
 
@@ -60,20 +64,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
               ),
               child: Column(
                 children: [
-                  Container(
-                    width: 100,
-                    height: 100,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      color: AppColors.orangeGlow,
-                      border: Border.all(color: AppColors.orange, width: 2.5),
-                    ),
-                    child: const Icon(
-                      Icons.person,
-                      color: AppColors.orange,
-                      size: 50,
-                    ),
-                  ),
+                  ProfilePhoto(photoUrl: currentUser?.photoUrl),
                   const SizedBox(height: 16),
                   Text(
                     displayName,
@@ -148,6 +139,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           bikeCc: currentUser.bikeCc,
                           bikeYear: currentUser.bikeYear,
                           bikeRegistration: currentUser.bikeRegistration,
+                          photoUrl: currentUser.photoUrl,
                         ),
                       );
                     }
@@ -173,6 +165,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           bikeCc: currentUser.bikeCc,
                           bikeYear: currentUser.bikeYear,
                           bikeRegistration: currentUser.bikeRegistration,
+                          photoUrl: currentUser.photoUrl,
                         ),
                       );
                     }
@@ -398,7 +391,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 onPressed: () => _showLogoutDialog(context),
                 style: OutlinedButton.styleFrom(
                   foregroundColor: AppColors.orange,
-                  side: const BorderSide(color: AppColors.orange),
+                  side: BorderSide(color: AppColors.orange),
                   padding: const EdgeInsets.symmetric(vertical: 14),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(12),
@@ -424,7 +417,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
         backgroundColor: AppColors.themedSurface,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(18),
-          side: const BorderSide(color: AppColors.orange, width: 1.2),
+          side: BorderSide(color: AppColors.orange, width: 1.2),
         ),
         title: const Text(
           'Logout',
@@ -486,7 +479,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
         backgroundColor: AppColors.themedSurface,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(18),
-          side: const BorderSide(color: AppColors.orange, width: 1.2),
+          side: BorderSide(color: AppColors.orange, width: 1.2),
         ),
         title: Text(
           'Edit $fieldName',
@@ -508,7 +501,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
             ),
             focusedBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(12),
-              borderSide: const BorderSide(color: AppColors.orange, width: 1.5),
+              borderSide: BorderSide(color: AppColors.orange, width: 1.5),
             ),
             filled: true,
             fillColor: AppColors.themedCard,
@@ -550,7 +543,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
     final currentUser = context.read<AuthProvider>().currentUser;
     final nameCtrl = TextEditingController(text: currentUser?.name ?? '');
     final emailCtrl = TextEditingController(text: currentUser?.email ?? '');
-    final phoneCtrl = TextEditingController(text: currentUser?.phone ?? '');
+    final phoneCtrl = TextEditingController(
+      text: indianPhoneNumberDigits(currentUser?.phone ?? ''),
+    );
 
     showDialog(
       context: context,
@@ -558,7 +553,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
         backgroundColor: AppColors.themedSurface,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(18),
-          side: const BorderSide(color: AppColors.orange, width: 1.2),
+          side: BorderSide(color: AppColors.orange, width: 1.2),
         ),
         title: const Text(
           'Edit Profile',
@@ -571,6 +566,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
+              _ProfilePhotoPicker(photoUrl: currentUser?.photoUrl),
+              const SizedBox(height: 20),
+
               // Name Field
               TextField(
                 controller: nameCtrl,
@@ -626,9 +624,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
               TextField(
                 controller: phoneCtrl,
                 keyboardType: TextInputType.phone,
+                inputFormatters: [IndianPhoneNumberFormatter()],
                 style: TextStyle(color: AppColors.themedText),
                 decoration: InputDecoration(
                   labelText: 'Phone',
+                  prefixText: '+91',
                   labelStyle: TextStyle(color: AppColors.themedGrey),
                   hintStyle: TextStyle(color: AppColors.themedGrey),
                   enabledBorder: OutlineInputBorder(
@@ -669,12 +669,23 @@ class _ProfileScreenState extends State<ProfileScreen> {
               if (nameCtrl.text.trim().isNotEmpty &&
                   emailCtrl.text.trim().isNotEmpty &&
                   phoneCtrl.text.trim().isNotEmpty) {
+                if (!isValidIndianPhoneNumber(phoneCtrl.text.trim())) {
+                  ScaffoldMessenger.of(ctx).showSnackBar(
+                    const SnackBar(
+                      content: Text(
+                        'Enter a valid 10-digit phone number after +91.',
+                      ),
+                      backgroundColor: AppColors.orange,
+                    ),
+                  );
+                  return;
+                }
                 if (currentUser != null) {
                   context.read<AuthProvider>().updateCurrentUser(
                     UserModel(
                       name: nameCtrl.text.trim(),
                       email: emailCtrl.text.trim(),
-                      phone: phoneCtrl.text.trim(),
+                      phone: toIndianPhoneNumber(phoneCtrl.text.trim()),
                       password: currentUser.password,
                       bikeStatus: currentUser.bikeStatus,
                       bikeBrand: currentUser.bikeBrand,
@@ -682,6 +693,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       bikeCc: currentUser.bikeCc,
                       bikeYear: currentUser.bikeYear,
                       bikeRegistration: currentUser.bikeRegistration,
+                      photoUrl: currentUser.photoUrl,
                     ),
                   );
                 }
@@ -702,6 +714,81 @@ class _ProfileScreenState extends State<ProfileScreen> {
           ),
         ],
       ),
+    );
+  }
+}
+
+class _ProfilePhotoPicker extends StatefulWidget {
+  const _ProfilePhotoPicker({required this.photoUrl});
+
+  final String? photoUrl;
+
+  @override
+  State<_ProfilePhotoPicker> createState() => _ProfilePhotoPickerState();
+}
+
+class _ProfilePhotoPickerState extends State<_ProfilePhotoPicker> {
+  final _imagePicker = ImagePicker();
+  bool _isUploading = false;
+  String? _photoUrl;
+
+  @override
+  void initState() {
+    super.initState();
+    _photoUrl = widget.photoUrl;
+  }
+
+  Future<void> _choosePhoto() async {
+    try {
+      final image = await _imagePicker.pickImage(
+        source: ImageSource.gallery,
+        imageQuality: 85,
+        maxWidth: 1024,
+        maxHeight: 1024,
+      );
+      if (image == null || !mounted) return;
+
+      setState(() => _isUploading = true);
+      final photoUrl = await context.read<AuthProvider>().updateProfilePhoto(
+        await image.readAsBytes(),
+        contentType: image.mimeType ?? 'image/jpeg',
+      );
+      if (mounted) {
+        setState(() {
+          _photoUrl = photoUrl;
+          _isUploading = false;
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Profile photo updated.')),
+        );
+      }
+    } catch (error) {
+      if (!mounted) return;
+      setState(() => _isUploading = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Could not update profile photo: $error')),
+      );
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: [
+        ProfilePhoto(photoUrl: _photoUrl, size: 88),
+        const SizedBox(height: 10),
+        OutlinedButton.icon(
+          onPressed: _isUploading ? null : _choosePhoto,
+          icon: _isUploading
+              ? const SizedBox(
+                  width: 16,
+                  height: 16,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                )
+              : const Icon(Icons.add_a_photo_outlined),
+          label: Text(_isUploading ? 'Uploading photo...' : 'Change photo'),
+        ),
+      ],
     );
   }
 }
@@ -756,143 +843,6 @@ class _ProfileInfoTile extends StatelessWidget {
                   const SizedBox(height: 4),
                   Text(
                     value,
-                    style: TextStyle(
-                      color: AppColors.themedText,
-                      fontSize: 15,
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            Icon(Icons.chevron_right, color: AppColors.themedGrey, size: 20),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _ProfilePhoneTile extends StatelessWidget {
-  final String phone;
-  final bool isVerified;
-  final VoidCallback onTap;
-
-  const _ProfilePhoneTile({
-    required this.phone,
-    required this.isVerified,
-    required this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.all(14),
-        decoration: BoxDecoration(
-          color: AppColors.themedCard,
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: AppColors.themedGreyBorder, width: 1),
-        ),
-        child: Row(
-          children: [
-            Container(
-              padding: const EdgeInsets.all(10),
-              decoration: BoxDecoration(
-                color: AppColors.orangeGlow,
-                borderRadius: BorderRadius.circular(10),
-              ),
-              child: const Icon(
-                Icons.phone_outlined,
-                color: AppColors.orange,
-                size: 20,
-              ),
-            ),
-            const SizedBox(width: 14),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      Text(
-                        'Phone',
-                        style: TextStyle(
-                          color: AppColors.themedGrey,
-                          fontSize: 12,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      if (isVerified)
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 6,
-                            vertical: 2,
-                          ),
-                          decoration: BoxDecoration(
-                            color: Colors.green.withValues(alpha: 0.2),
-                            borderRadius: BorderRadius.circular(4),
-                            border: Border.all(color: Colors.green, width: 0.5),
-                          ),
-                          child: const Row(
-                            children: [
-                              Icon(
-                                Icons.check_circle,
-                                color: Colors.green,
-                                size: 12,
-                              ),
-                              SizedBox(width: 4),
-                              Text(
-                                'Verified',
-                                style: TextStyle(
-                                  color: Colors.green,
-                                  fontSize: 10,
-                                  fontWeight: FontWeight.w700,
-                                ),
-                              ),
-                            ],
-                          ),
-                        )
-                      else
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 6,
-                            vertical: 2,
-                          ),
-                          decoration: BoxDecoration(
-                            color: Colors.orange.withValues(alpha: 0.2),
-                            borderRadius: BorderRadius.circular(4),
-                            border: Border.all(
-                              color: Colors.orange,
-                              width: 0.5,
-                            ),
-                          ),
-                          child: const Row(
-                            children: [
-                              Icon(
-                                Icons.warning_amber,
-                                color: Colors.orange,
-                                size: 12,
-                              ),
-                              SizedBox(width: 4),
-                              Text(
-                                'Pending',
-                                style: TextStyle(
-                                  color: Colors.orange,
-                                  fontSize: 10,
-                                  fontWeight: FontWeight.w700,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                    ],
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    phone,
                     style: TextStyle(
                       color: AppColors.themedText,
                       fontSize: 15,
@@ -1000,10 +950,7 @@ class _BikeCard extends StatelessWidget {
                     children: [
                       Row(
                         children: [
-                          Text(
-                            bike.brand.emoji,
-                            style: const TextStyle(fontSize: 24),
-                          ),
+                          BikeBrandLogo(brand: bike.brand),
                           const SizedBox(width: 8),
                           Expanded(
                             child: Text(
@@ -1152,19 +1099,23 @@ class _BikeCard extends StatelessWidget {
                     vertical: 6,
                   ),
                   decoration: BoxDecoration(
-                    color: Colors.red.withValues(alpha: 0.2),
+                    color: AppColors.orange.withValues(alpha: 0.2),
                     borderRadius: BorderRadius.circular(6),
-                    border: Border.all(color: Colors.red, width: 0.8),
+                    border: Border.all(color: AppColors.orange, width: 0.8),
                   ),
                   child: const Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      Icon(Icons.delete_outline, color: Colors.red, size: 14),
+                      Icon(
+                        Icons.delete_outline,
+                        color: AppColors.orange,
+                        size: 14,
+                      ),
                       SizedBox(width: 4),
                       Text(
                         'Remove',
                         style: TextStyle(
-                          color: Colors.red,
+                          color: AppColors.orange,
                           fontSize: 11,
                           fontWeight: FontWeight.w600,
                         ),
@@ -1182,7 +1133,7 @@ class _BikeCard extends StatelessWidget {
 
   Color _parseColor(String colorName) {
     final name = colorName.toLowerCase();
-    if (name.contains('red')) return Colors.red;
+    if (name.contains('red')) return AppColors.orange;
     if (name.contains('black')) return AppColors.themedText;
     if (name.contains('white')) return Colors.white;
     if (name.contains('blue')) return Colors.blue;

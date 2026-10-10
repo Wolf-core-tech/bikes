@@ -10,8 +10,8 @@ import '../providers/ride_provider.dart';
 import '../providers/ride_tracking_provider.dart';
 import '../services/cached_tile_provider.dart';
 import '../services/map_service.dart';
-import '../services/ride_report_service.dart';
 import '../theme/app_theme.dart';
+import 'ride_reports_screen.dart';
 
 class MapTabScreen extends StatefulWidget {
   final VoidCallback? onRideEnded;
@@ -24,7 +24,6 @@ class MapTabScreen extends StatefulWidget {
 class _RideTrackingScreenState extends State<MapTabScreen>
     with TickerProviderStateMixin {
   final MapController _mapController = MapController();
-  final RideReportService _reportService = RideReportService();
   double _zoom = 17.0;
   bool _autoStartRequested = false;
   bool _followMode = true; // Google Maps camera-follow mode
@@ -112,7 +111,11 @@ class _RideTrackingScreenState extends State<MapTabScreen>
         !_autoStartRequested) {
       _autoStartRequested = true;
       WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted) context.read<RideTrackingProvider>().startRide();
+        if (mounted) {
+          context.read<RideTrackingProvider>().startRide(
+            rideName: context.read<RideSetup>().rideName,
+          );
+        }
       });
     } else if (!setup.isComplete) {
       _autoStartRequested = false;
@@ -390,7 +393,6 @@ class _RideTrackingScreenState extends State<MapTabScreen>
                 _RideActions(
                   tracking: tracking,
                   setup: setup,
-                  reportService: _reportService,
                   onRideEnded: widget.onRideEnded,
                   onStartWithRoute: _handleStartWithRoute,
                   onFreeRide: _handleFreeRide,
@@ -571,7 +573,9 @@ class _RideTrackingScreenState extends State<MapTabScreen>
     });
 
     // Start GPS tracking immediately — don't wait for route
-    final started = await tracking.startRide();
+    final started = await tracking.startRide(
+      rideName: context.read<RideSetup>().rideName,
+    );
     if (!started && mounted && tracking.errorMessage != null) {
       ScaffoldMessenger.of(context)
           .showSnackBar(SnackBar(content: Text(tracking.errorMessage!)));
@@ -635,7 +639,9 @@ class _RideTrackingScreenState extends State<MapTabScreen>
       _destinationLabel = null;
       _followMode = true;
     });
-    final started = await tracking.startRide();
+    final started = await tracking.startRide(
+      rideName: context.read<RideSetup>().rideName,
+    );
     if (!started && mounted && tracking.errorMessage != null) {
       ScaffoldMessenger.of(context)
           .showSnackBar(SnackBar(content: Text(tracking.errorMessage!)));
@@ -715,7 +721,6 @@ class _Metric extends StatelessWidget {
 class _RideActions extends StatelessWidget {
   final RideTrackingProvider tracking;
   final RideSetup setup;
-  final RideReportService reportService;
   final VoidCallback? onRideEnded;
   final Future<void> Function(LatLng dest, String label) onStartWithRoute;
   final Future<void> Function() onFreeRide;
@@ -723,7 +728,6 @@ class _RideActions extends StatelessWidget {
   const _RideActions({
     required this.tracking,
     required this.setup,
-    required this.reportService,
     required this.onStartWithRoute,
     required this.onFreeRide,
     this.onRideEnded,
@@ -757,9 +761,15 @@ class _RideActions extends StatelessWidget {
             Padding(
               padding: const EdgeInsets.only(top: 6),
               child: OutlinedButton.icon(
-                icon: const Icon(Icons.picture_as_pdf),
-                onPressed: () => reportService.printReport(tracking.selectedRide!),
-                label: const Text('Generate PDF Report'),
+                icon: const Icon(Icons.receipt_long_outlined),
+                onPressed: () => Navigator.push<void>(
+                  context,
+                  MaterialPageRoute<void>(
+                    builder: (_) =>
+                        RideReportDetailScreen(ride: tracking.selectedRide!),
+                  ),
+                ),
+                label: const Text('View Ride Report'),
               ),
             ),
         ],
@@ -1025,12 +1035,12 @@ class _StartRideSheetState extends State<_StartRideSheet> {
             const SizedBox(height: 8),
             Row(
               children: [
-                const Icon(Icons.error_outline, color: Colors.red, size: 16),
+                const Icon(Icons.error_outline, color: AppColors.orange, size: 16),
                 const SizedBox(width: 6),
                 Expanded(
                   child: Text(
                     _error!,
-                    style: const TextStyle(color: Colors.red, fontSize: 12),
+                    style: const TextStyle(color: AppColors.orange, fontSize: 12),
                   ),
                 ),
               ],

@@ -27,7 +27,7 @@ class AuthHeader extends StatelessWidget {
           end: Alignment.bottomCenter,
           colors: [
             Color(0xFF000000), // Pure Black
-            Color(0xFF180305), // Deep Dark Crimson Red undertone
+            AppColors.orange,
             Color(0xFF0D0D0D), // Matte Black finish
           ],
         ),
@@ -37,7 +37,7 @@ class AuthHeader extends StatelessWidget {
         ),
         boxShadow: [
           BoxShadow(
-            color: const Color(0xFFE63946).withValues(alpha: 0.3),
+            color: AppColors.orange.withValues(alpha: 0.3),
             blurRadius: 20,
             offset: const Offset(0, 8),
           ),
@@ -58,10 +58,10 @@ class AuthHeader extends StatelessWidget {
                       icon: Container(
                         padding: const EdgeInsets.all(8),
                         decoration: BoxDecoration(
-                          color: const Color(0xFFE63946).withValues(alpha: 0.2),
+                          color: AppColors.orange.withValues(alpha: 0.2),
                           shape: BoxShape.circle,
                           border: Border.all(
-                            color: const Color(0xFFE63946).withValues(alpha: 0.5),
+                            color: AppColors.orange.withValues(alpha: 0.5),
                             width: 1,
                           ),
                         ),
@@ -84,7 +84,7 @@ class AuthHeader extends StatelessWidget {
                     ),
                     decoration: BoxDecoration(
                       gradient: const LinearGradient(
-                        colors: [Color(0xFFE63946), Color(0xFFB71C1C)],
+                        colors: [AppColors.orange, AppColors.orange],
                       ),
                       borderRadius: BorderRadius.circular(20),
                       border: Border.all(
@@ -93,7 +93,7 @@ class AuthHeader extends StatelessWidget {
                       ),
                       boxShadow: [
                         BoxShadow(
-                          color: const Color(0xFFE63946).withValues(alpha: 0.5),
+                          color: AppColors.orange.withValues(alpha: 0.5),
                           blurRadius: 10,
                           offset: const Offset(0, 3),
                         ),
@@ -140,12 +140,12 @@ class AuthHeader extends StatelessWidget {
                       shape: BoxShape.circle,
                       boxShadow: [
                         BoxShadow(
-                          color: const Color(0xFFE63946).withValues(alpha: 0.55),
+                          color: AppColors.orange.withValues(alpha: 0.55),
                           blurRadius: 35,
                           spreadRadius: 8,
                         ),
                         BoxShadow(
-                          color: const Color(0xFF8B0000).withValues(alpha: 0.45),
+                          color: AppColors.orange.withValues(alpha: 0.45),
                           blurRadius: 25,
                           spreadRadius: 4,
                         ),
@@ -160,9 +160,9 @@ class AuthHeader extends StatelessWidget {
                       shape: BoxShape.circle,
                       gradient: const LinearGradient(
                         colors: [
-                          Color(0xFFFF3344),
-                          Color(0xFFE63946),
-                          Color(0xFF900C3F),
+                          AppColors.orange,
+                          AppColors.orange,
+                          AppColors.orange,
                           Color(0xFF000000),
                         ],
                         begin: Alignment.topLeft,
@@ -189,7 +189,7 @@ class AuthHeader extends StatelessWidget {
                                 child: const Icon(
                                   Icons.two_wheeler,
                                   size: 70,
-                                  color: Color(0xFFE63946),
+                                  color: AppColors.orange,
                                 ),
                               );
                             },

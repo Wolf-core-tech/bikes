@@ -1,19 +1,28 @@
 import 'package:flutter/material.dart';
 
+class RideWolfColors {
+  static const Color black = Color(0xFF050505);
+  static const Color racingRed = Color.fromARGB(255, 188, 0, 16);
+  static const Color darkRed = Color.fromARGB(255, 188, 0, 16);
+  static const Color silver = Color(0xFF909090);
+  static const Color white = Color(0xFFF5F5F5);
+  static const Color charcoal = Color(0xFF202020);
+}
+
 class AppColors {
   static const backgroundLight = Color(0xFFFFFFFF);
   static const surfaceLight = Color(0xFFF5F5F5);
   static const cardLight = Color(0xFFF5F5F5);
-  static const backgroundDark = Color(0xFF0F172A);
-  static const surfaceDark = Color(0xFF111827);
-  static const cardDark = Color(0xFF1F2937);
-  static const orange = Color(0xFFE63946);
-  static const orangeDim = Color(0xFFFF6B6B);
-  static const orangeGlow = Color(0x33E63946);
-  static const blue = Color(0xFF0066CC);
-  static const blueDim = Color(0xFF3399FF);
+  static const backgroundDark = Color.fromARGB(255, 0, 0, 0);
+  static const surfaceDark = Color.fromARGB(255, 0, 0, 0);
+  static const cardDark = Color.fromARGB(255, 59, 63, 69);
+  static const orange = Color.fromARGB(255, 188, 0, 16);
+  static const orangeDim = Color.fromARGB(255, 188, 0, 16);
+  static const orangeGlow = Color(0x33BC0010);
+  static const blue = Color.fromARGB(255, 255, 255, 255);
+  static const blueDim = Color.fromARGB(255, 244, 245, 245);
   static const blueGlow = Color(0x330066CC);
-  static const danger = Color(0xFFFF3B30);
+  static const danger = Color.fromARGB(255, 188, 0, 16);
   static const success = Color(0xFF30D158);
 
   static const background = Color(0xFFFFFFFF);
@@ -31,33 +40,39 @@ class AppColors {
   }
 
   static Color get themedBackground =>
-      _useDarkMode ? backgroundDark : backgroundLight;
-  static Color get themedSurface => _useDarkMode ? surfaceDark : surfaceLight;
-  static Color get themedCard => _useDarkMode ? cardDark : cardLight;
-  static Color get themedText => _useDarkMode ? white : black;
-  static Color get themedGrey => _useDarkMode ? const Color(0xFF6B7280) : grey;
+      _useDarkMode ? RideWolfColors.black : backgroundLight;
+  static Color get themedSurface =>
+      _useDarkMode ? RideWolfColors.charcoal : surfaceLight;
+  static Color get themedCard =>
+      _useDarkMode ? RideWolfColors.charcoal : cardLight;
+  static Color get themedText => _useDarkMode ? RideWolfColors.white : black;
+  static Color get themedGrey => _useDarkMode ? RideWolfColors.silver : grey;
   static Color get themedGreyBorder =>
-      _useDarkMode ? const Color(0xFF374151) : greyDark;
+      _useDarkMode ? RideWolfColors.silver : greyDark;
 }
 
 class AppTheme extends ChangeNotifier {
   AppTheme({bool isDarkMode = false}) : _isDarkMode = isDarkMode {
-    AppColors.syncTheme(_isDarkMode);
+    _syncColors();
   }
 
   bool _isDarkMode;
 
   bool get isDarkMode => _isDarkMode;
 
+  void _syncColors() {
+    AppColors.syncTheme(_isDarkMode);
+  }
+
   void toggleTheme() {
     _isDarkMode = !_isDarkMode;
-    AppColors.syncTheme(_isDarkMode);
+    _syncColors();
     notifyListeners();
   }
 
   void setTheme(bool value) {
     _isDarkMode = value;
-    AppColors.syncTheme(_isDarkMode);
+    _syncColors();
     notifyListeners();
   }
 
@@ -69,11 +84,11 @@ class AppTheme extends ChangeNotifier {
   static final ThemeData _lightTheme = ThemeData(
     brightness: Brightness.light,
     scaffoldBackgroundColor: AppColors.backgroundLight,
-    primaryColor: AppColors.orange,
+    primaryColor: const Color.fromARGB(255, 188, 0, 16),
     colorScheme: const ColorScheme.light(
-      primary: AppColors.orange,
+      primary: Color.fromARGB(255, 188, 0, 16),
       surface: AppColors.surfaceLight,
-      error: AppColors.danger,
+      error: Color.fromARGB(255, 188, 0, 16),
     ),
     fontFamily: 'Roboto',
     appBarTheme: const AppBarTheme(
@@ -115,48 +130,53 @@ class AppTheme extends ChangeNotifier {
 
   static final ThemeData _darkTheme = ThemeData(
     brightness: Brightness.dark,
-    scaffoldBackgroundColor: AppColors.backgroundDark,
-    primaryColor: AppColors.orange,
+    scaffoldBackgroundColor: RideWolfColors.black,
+    primaryColor: RideWolfColors.racingRed,
     colorScheme: const ColorScheme.dark(
-      primary: AppColors.orange,
-      surface: AppColors.surfaceDark,
-      error: AppColors.danger,
+      primary: RideWolfColors.racingRed,
+      secondary: RideWolfColors.darkRed,
+      surface: RideWolfColors.charcoal,
+      error: AppColors.orange,
     ),
     fontFamily: 'Roboto',
     appBarTheme: const AppBarTheme(
-      backgroundColor: AppColors.backgroundDark,
+      backgroundColor: RideWolfColors.black,
       elevation: 0,
       titleTextStyle: TextStyle(
-        color: AppColors.white,
+        color: RideWolfColors.white,
         fontSize: 22,
         fontWeight: FontWeight.w700,
         letterSpacing: 0.5,
       ),
-      iconTheme: IconThemeData(color: AppColors.orange),
+      iconTheme: IconThemeData(color: RideWolfColors.racingRed),
     ),
     textTheme: const TextTheme(
       headlineLarge: TextStyle(
-        color: AppColors.white,
+        color: RideWolfColors.white,
         fontWeight: FontWeight.w700,
       ),
       headlineMedium: TextStyle(
-        color: AppColors.white,
+        color: RideWolfColors.white,
         fontWeight: FontWeight.w600,
       ),
       titleLarge: TextStyle(
-        color: AppColors.white,
+        color: RideWolfColors.white,
         fontWeight: FontWeight.w600,
       ),
-      titleMedium: TextStyle(color: AppColors.white),
-      bodyLarge: TextStyle(color: AppColors.white),
-      bodyMedium: TextStyle(color: AppColors.greyDark),
+      titleMedium: TextStyle(color: RideWolfColors.white),
+      bodyLarge: TextStyle(color: RideWolfColors.white),
+      bodyMedium: TextStyle(color: RideWolfColors.silver),
       labelLarge: TextStyle(
-        color: AppColors.orange,
+        color: RideWolfColors.racingRed,
         fontWeight: FontWeight.w600,
         letterSpacing: 1,
       ),
     ),
-    dividerColor: AppColors.greyDark,
-    iconTheme: const IconThemeData(color: AppColors.orange),
+    dividerColor: RideWolfColors.silver,
+    iconTheme: IconThemeData(color: RideWolfColors.racingRed),
+    switchTheme: SwitchThemeData(
+      thumbColor: WidgetStatePropertyAll(RideWolfColors.racingRed),
+      trackColor: WidgetStatePropertyAll(RideWolfColors.darkRed),
+    ),
   );
 }

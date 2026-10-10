@@ -45,7 +45,7 @@ class _SquadScreenState extends State<SquadScreen>
       ),
     );
 
-    if (!mounted || groupId == null) return;
+    if (!context.mounted || groupId == null) return;
     final group = squadProvider.groups.firstWhere(
       (group) => group.id == groupId,
     );
@@ -69,11 +69,11 @@ class _SquadScreenState extends State<SquadScreen>
         backgroundColor: AppColors.themedSurface,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(18),
-          side: const BorderSide(color: Colors.red, width: 1.2),
+          side: const BorderSide(color: AppColors.orange, width: 1.2),
         ),
         title: const Text(
           'Delete Group',
-          style: TextStyle(color: Colors.red, fontWeight: FontWeight.w700),
+          style: TextStyle(color: AppColors.orange, fontWeight: FontWeight.w700),
         ),
         content: Text(
           'Are you sure you want to delete "$groupName"? This action cannot be undone.',
@@ -89,7 +89,7 @@ class _SquadScreenState extends State<SquadScreen>
           ),
           ElevatedButton(
             style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.red,
+              backgroundColor: AppColors.orange,
               foregroundColor: Colors.white,
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(10),
@@ -563,7 +563,7 @@ class _SquadCreationScreenState extends State<_SquadCreationScreen> {
           decoration: InputDecoration(
             hintText: 'Squad name',
             hintStyle: TextStyle(color: AppColors.themedGrey),
-            prefixIcon: const Icon(Icons.edit, color: AppColors.orange),
+            prefixIcon: Icon(Icons.edit, color: AppColors.orange),
             filled: true,
             fillColor: AppColors.themedCard,
             enabledBorder: OutlineInputBorder(
@@ -572,7 +572,7 @@ class _SquadCreationScreenState extends State<_SquadCreationScreen> {
             ),
             focusedBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(14),
-              borderSide: const BorderSide(color: AppColors.orange, width: 1.5),
+              borderSide: BorderSide(color: AppColors.orange, width: 1.5),
             ),
           ),
         ),

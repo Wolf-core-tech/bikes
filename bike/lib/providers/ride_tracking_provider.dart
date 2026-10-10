@@ -17,6 +17,7 @@ class RideTrackingProvider extends ChangeNotifier {
   final List<TrackedRide> _completedRides = [];
 
   DateTime? _startTime;
+  String? _rideName;
   DateTime? _stopStartedAt;
   double _distanceMeters = 0;
   double _maximumSpeed = 0;
@@ -114,7 +115,7 @@ class RideTrackingProvider extends ChangeNotifier {
     }
   }
 
-  Future<bool> startRide() async {
+  Future<bool> startRide({String? rideName}) async {
     _errorMessage = null;
     if (!await Geolocator.isLocationServiceEnabled()) {
       _errorMessage =
@@ -149,6 +150,7 @@ class RideTrackingProvider extends ChangeNotifier {
     _stopStartedAt = null;
     _stopCount = 0;
     _startTime = DateTime.now();
+    _rideName = rideName?.trim();
     _selectedRide = null;
     _isTracking = true;
 
@@ -242,6 +244,7 @@ class RideTrackingProvider extends ChangeNotifier {
     final last = _routePoints.last;
     final ride = TrackedRide(
       id: DateTime.now().microsecondsSinceEpoch.toString(),
+      rideName: _rideName,
       startTime: _startTime!,
       endTime: endTime,
       startLatitude: first.latitude,
@@ -260,6 +263,7 @@ class RideTrackingProvider extends ChangeNotifier {
     _completedRides.insert(0, ride);
     _isTracking = false;
     _startTime = null;
+    _rideName = null;
     _selectedRide = ride;
     notifyListeners();
     return ride;

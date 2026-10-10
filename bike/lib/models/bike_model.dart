@@ -76,54 +76,54 @@ extension BikeBrandExtension on BikeBrand {
     }
   }
 
-  String get emoji {
+  String? get logoAssetPath {
     switch (this) {
       case BikeBrand.heroMotoCorp:
-        return '🔴';
-      case BikeBrand.hondaMotorcycleScoterIndia:
-        return '🔵';
+        return 'assets/brand/HEROMOTOCO.png';
       case BikeBrand.tvsMotorCompany:
-        return '🟠';
-      case BikeBrand.bajajauto:
-        return '🟡';
-      case BikeBrand.royalEnfield:
-        return '🟤';
+        return 'assets/brand/TVS.png';
       case BikeBrand.yamahaMotorIndia:
-        return '🔘';
+        return 'assets/brand/YAMAHA.png';
+      case BikeBrand.hondaMotorcycleScoterIndia:
+        return 'assets/brand/honda.png';
+      case BikeBrand.bajajauto:
+        return 'assets/brand/BAJAJ.png';
+      case BikeBrand.royalEnfield:
+        return 'assets/brand/royal-enfield.png';
       case BikeBrand.suzukiMotorcycleIndia:
-        return '🟣';
+        return 'assets/brand/suzuki.png';
       case BikeBrand.ktm:
-        return '🟠';
+        return 'assets/brand/ktm.png';
       case BikeBrand.kawasaki:
-        return '🟢';
+        return 'assets/brand/kawasaki.png';
       case BikeBrand.bmwMotorrad:
-        return '⚪';
+        return 'assets/brand/BMW.png';
       case BikeBrand.ducati:
-        return '🔴';
+        return 'assets/brand/Ducati.png';
       case BikeBrand.triumphMotorcycles:
-        return '🟦';
+        return 'assets/brand/triumph.png';
       case BikeBrand.harleyDavidson:
-        return '🟥';
+        return 'assets/brand/Harley.png';
       case BikeBrand.indianMotorcycle:
-        return '🟤';
+        return 'assets/brand/Indian.png';
       case BikeBrand.jawa:
-        return '🟨';
+        return 'assets/brand/Jawa.png';
       case BikeBrand.yezdi:
-        return '🟩';
+        return 'assets/brand/Custom.png';
       case BikeBrand.benelli:
-        return '🟠';
+        return 'assets/brand/Benelli.png';
       case BikeBrand.husqvarna:
-        return '🟢';
+        return 'assets/brand/Husqvarna.png';
       case BikeBrand.aprilia:
-        return '🟪';
+        return 'assets/brand/Aprilia.png';
       case BikeBrand.atherEnergy:
-        return '⚡';
+        return 'assets/brand/ATHER.png';
       case BikeBrand.olaElectric:
-        return '🔌';
+        return 'assets/brand/Ola.png';
       case BikeBrand.simpleEnergy:
-        return '💡';
+        return 'assets/brand/Custom.png';
       case BikeBrand.other:
-        return '🏍️';
+        return 'assets/brand/Custom.png';
     }
   }
 }

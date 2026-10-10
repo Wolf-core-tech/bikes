@@ -44,7 +44,7 @@ class _LoginScreenState extends State<LoginScreen> {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('Please enter both email and password.'),
-          backgroundColor: Colors.redAccent,
+          backgroundColor: AppColors.orange,
           behavior: SnackBarBehavior.floating,
         ),
       );
@@ -55,7 +55,7 @@ class _LoginScreenState extends State<LoginScreen> {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('Please enter a valid email address.'),
-          backgroundColor: Colors.redAccent,
+          backgroundColor: AppColors.orange,
           behavior: SnackBarBehavior.floating,
         ),
       );
@@ -84,7 +84,9 @@ class _LoginScreenState extends State<LoginScreen> {
                 ScaffoldMessenger.of(context).showSnackBar(
                   SnackBar(
                     content: Text(resendError ?? 'Verification link resent! Check your inbox.'),
-                    backgroundColor: resendError == null ? Colors.green : Colors.redAccent,
+                    backgroundColor: resendError == null
+                        ? Colors.green
+                        : AppColors.orange,
                     behavior: SnackBarBehavior.floating,
                   ),
                 );
@@ -98,7 +100,7 @@ class _LoginScreenState extends State<LoginScreen> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(errorMessage),
-          backgroundColor: Colors.redAccent,
+          backgroundColor: AppColors.orange,
           behavior: SnackBarBehavior.floating,
         ),
       );
@@ -171,7 +173,7 @@ class _LoginScreenState extends State<LoginScreen> {
                     decoration: InputDecoration(
                       labelText: 'Email Address *',
                       labelStyle: TextStyle(color: AppColors.themedGrey),
-                      prefixIcon: const Icon(Icons.email_outlined, color: Color(0xFFE63946)),
+                      prefixIcon: const Icon(Icons.email_outlined, color: AppColors.orange),
                       filled: true,
                       fillColor: AppColors.themedCard,
                       border: OutlineInputBorder(
@@ -184,7 +186,7 @@ class _LoginScreenState extends State<LoginScreen> {
                       ),
                       focusedBorder: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(16),
-                        borderSide: const BorderSide(color: Color(0xFFE63946), width: 2),
+                        borderSide: const BorderSide(color: AppColors.orange, width: 2),
                       ),
                     ),
                     keyboardType: TextInputType.emailAddress,
@@ -198,7 +200,7 @@ class _LoginScreenState extends State<LoginScreen> {
                     decoration: InputDecoration(
                       labelText: 'Password *',
                       labelStyle: TextStyle(color: AppColors.themedGrey),
-                      prefixIcon: const Icon(Icons.lock_outline, color: Color(0xFFE63946)),
+                      prefixIcon: const Icon(Icons.lock_outline, color: AppColors.orange),
                       suffixIcon: IconButton(
                         icon: Icon(
                           _obscurePassword ? Icons.visibility_off : Icons.visibility,
@@ -222,7 +224,7 @@ class _LoginScreenState extends State<LoginScreen> {
                       ),
                       focusedBorder: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(16),
-                        borderSide: const BorderSide(color: Color(0xFFE63946), width: 2),
+                        borderSide: const BorderSide(color: AppColors.orange, width: 2),
                       ),
                     ),
                     obscureText: _obscurePassword,
@@ -242,7 +244,7 @@ class _LoginScreenState extends State<LoginScreen> {
                       child: const Text(
                         'Forgot Password?',
                         style: TextStyle(
-                          color: Color(0xFFE63946),
+                          color: AppColors.orange,
                           fontWeight: FontWeight.w600,
                         ),
                       ),
@@ -257,12 +259,12 @@ class _LoginScreenState extends State<LoginScreen> {
                     height: 56,
                     decoration: BoxDecoration(
                       gradient: const LinearGradient(
-                        colors: [Color(0xFFE63946), Color(0xFF900C3F)],
+                        colors: [AppColors.orange, AppColors.orange],
                       ),
                       borderRadius: BorderRadius.circular(16),
                       boxShadow: [
                         BoxShadow(
-                          color: const Color(0xFFE63946).withValues(alpha: 0.35),
+                          color: AppColors.orange.withValues(alpha: 0.35),
                           blurRadius: 16,
                           offset: const Offset(0, 6),
                         ),
@@ -321,7 +323,7 @@ class _LoginScreenState extends State<LoginScreen> {
                         child: const Text(
                           'Register Now',
                           style: TextStyle(
-                            color: Color(0xFFE63946),
+                            color: AppColors.orange,
                             fontWeight: FontWeight.w800,
                             fontSize: 15,
                           ),

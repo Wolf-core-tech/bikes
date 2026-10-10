@@ -26,7 +26,7 @@ class RiderAvatar extends StatelessWidget {
       case RiderRole.midRider:
         return const Color(0xFF30D158);
       case RiderRole.tail:
-        return const Color(0xFFFF453A);
+        return AppColors.orange;
     }
   }
 
@@ -151,7 +151,7 @@ class RoleChip extends StatelessWidget {
       case RiderRole.midRider:
         return const Color(0xFF30D158);
       case RiderRole.tail:
-        return const Color(0xFFFF453A);
+        return AppColors.orange;
     }
   }
 

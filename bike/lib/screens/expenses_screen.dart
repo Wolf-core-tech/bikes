@@ -1,6 +1,11 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart';
+import 'package:provider/provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
+import '../providers/ride_tracking_provider.dart';
 import '../theme/app_theme.dart';
 
 class RideExpense {
@@ -15,6 +20,22 @@ class RideExpense {
     required this.date,
     required this.items,
   });
+
+  Map<String, dynamic> toJson() => {
+    'rideName': rideName,
+    'distance': distance,
+    'date': date,
+    'items': items.map((item) => item.toJson()).toList(),
+  };
+
+  factory RideExpense.fromJson(Map<String, dynamic> json) => RideExpense(
+    rideName: json['rideName'] as String,
+    distance: json['distance'] as String,
+    date: json['date'] as String,
+    items: (json['items'] as List<dynamic>)
+        .map((item) => ExpenseItem.fromJson(item as Map<String, dynamic>))
+        .toList(),
+  );
 
   int get total => items.fold(0, (sum, item) => sum + item.amount);
 
@@ -42,9 +63,41 @@ class ExpenseItem {
     this.location,
     this.modeOfPay,
   });
+
+  Map<String, dynamic> toJson() => {
+    'label': label,
+    'amount': amount,
+    'location': location,
+    'modeOfPay': modeOfPay,
+  };
+
+  factory ExpenseItem.fromJson(Map<String, dynamic> json) => ExpenseItem(
+    label: json['label'] as String,
+    amount: (json['amount'] as num).toInt(),
+    icon: expenseIconForPurpose(json['label'] as String),
+    location: json['location'] as String?,
+    modeOfPay: json['modeOfPay'] as String?,
+  );
 }
 
 final rideExpensesNotifier = ValueNotifier<List<RideExpense>>([]);
+const _rideExpensesStorageKey = 'ride_expenses';
+Future<void>? _rideExpensesLoading;
+
+Future<void> loadSavedRideExpenses() {
+  return _rideExpensesLoading ??= _loadSavedRideExpenses();
+}
+
+Future<void> _loadSavedRideExpenses() async {
+  final preferences = await SharedPreferences.getInstance();
+  final stored = preferences.getString(_rideExpensesStorageKey);
+  if (stored == null) return;
+
+  final decoded = jsonDecode(stored) as List<dynamic>;
+  rideExpensesNotifier.value = decoded
+      .map((item) => RideExpense.fromJson(item as Map<String, dynamic>))
+      .toList();
+}
 
 const sampleRideExpenses = <RideExpense>[];
 
@@ -75,13 +128,13 @@ IconData expenseIconForPurpose(String purpose) {
   return Icons.receipt_long;
 }
 
-void addExpenseToRide({
+Future<void> addExpenseToRide({
   required String rideName,
   required String purpose,
   required int amount,
   String? location,
   String? modeOfPay,
-}) {
+}) async {
   final currentRides = rideExpensesNotifier.value;
   bool rideExists = false;
 
@@ -123,6 +176,11 @@ void addExpenseToRide({
     );
   }
 
+  final preferences = await SharedPreferences.getInstance();
+  await preferences.setString(
+    _rideExpensesStorageKey,
+    jsonEncode(nextRides.map((ride) => ride.toJson()).toList()),
+  );
   rideExpensesNotifier.value = nextRides;
 }
 
@@ -204,7 +262,6 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
   final _purposeController = TextEditingController();
   final _priceController = TextEditingController();
   final _locationController = TextEditingController();
-  String? _selectedRideName;
   String? _selectedModeOfPay;
 
   bool _isFetchingLocation = false;
@@ -218,11 +275,7 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
     'Services',
   ];
 
-  final List<String> _paymentModes = [
-    'Gpay',
-    'Hardcash',
-    'Friend pay',
-  ];
+  final List<String> _paymentModes = ['Gpay', 'Hardcash', 'Friend pay'];
 
   @override
   void dispose() {
@@ -248,7 +301,9 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
       }
 
       final position = await Geolocator.getCurrentPosition(
-        desiredAccuracy: LocationAccuracy.high,
+        locationSettings: const LocationSettings(
+          accuracy: LocationAccuracy.high,
+        ),
       );
       _locationController.text =
           '${position.latitude.toStringAsFixed(4)}, ${position.longitude.toStringAsFixed(4)}';
@@ -268,17 +323,28 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
     }
   }
 
-  void _saveExpense() {
+  Future<void> _saveExpense() async {
     if (!_formKey.currentState!.validate()) return;
 
-    addExpenseToRide(
-      rideName: _rideNameController.text.trim(),
-      purpose: _purposeController.text,
-      amount: int.parse(_priceController.text.trim()),
-      location: _locationController.text.trim().isEmpty ? null : _locationController.text.trim(),
-      modeOfPay: _selectedModeOfPay,
-    );
+    try {
+      await addExpenseToRide(
+        rideName: _rideNameController.text.trim(),
+        purpose: _purposeController.text,
+        amount: int.parse(_priceController.text.trim()),
+        location: _locationController.text.trim().isEmpty
+            ? null
+            : _locationController.text.trim(),
+        modeOfPay: _selectedModeOfPay,
+      );
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Failed to save expense: $error')),
+      );
+      return;
+    }
 
+    if (!mounted) return;
     ScaffoldMessenger.of(
       context,
     ).showSnackBar(const SnackBar(content: Text('Expense saved')));
@@ -317,38 +383,57 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
                       if (textEditingValue.text.isEmpty) {
                         return const Iterable<String>.empty();
                       }
-                      return rides.map((r) => r.rideName).where((String option) {
+                      final rideNames = <String>{
+                        ...rides.map((ride) => ride.rideName),
+                        ...context
+                            .read<RideTrackingProvider>()
+                            .completedRides
+                            .map((ride) => ride.rideName)
+                            .whereType<String>(),
+                      };
+                      return rideNames.where((option) {
                         return option.toLowerCase().contains(
-                              textEditingValue.text.toLowerCase(),
-                            );
+                          textEditingValue.text.toLowerCase(),
+                        );
                       });
                     },
                     onSelected: (String selection) {
                       _rideNameController.text = selection;
                     },
-                    fieldViewBuilder: (context, textEditingController, focusNode, onFieldSubmitted) {
-                      if (_rideNameController.text != textEditingController.text && !focusNode.hasFocus) {
-                         textEditingController.text = _rideNameController.text;
-                      }
-                      textEditingController.addListener(() {
-                        if (_rideNameController.text != textEditingController.text) {
-                          _rideNameController.text = textEditingController.text;
-                        }
-                      });
-                      
-                      return TextFormField(
-                        controller: textEditingController,
-                        focusNode: focusNode,
-                        textCapitalization: TextCapitalization.words,
-                        decoration: _fieldDecoration('Ride Name'),
-                        validator: (value) {
-                          if (value == null || value.trim().isEmpty) {
-                            return 'Please enter or select a ride';
+                    fieldViewBuilder:
+                        (
+                          context,
+                          textEditingController,
+                          focusNode,
+                          onFieldSubmitted,
+                        ) {
+                          if (_rideNameController.text !=
+                                  textEditingController.text &&
+                              !focusNode.hasFocus) {
+                            textEditingController.text =
+                                _rideNameController.text;
                           }
-                          return null;
+                          textEditingController.addListener(() {
+                            if (_rideNameController.text !=
+                                textEditingController.text) {
+                              _rideNameController.text =
+                                  textEditingController.text;
+                            }
+                          });
+
+                          return TextFormField(
+                            controller: textEditingController,
+                            focusNode: focusNode,
+                            textCapitalization: TextCapitalization.words,
+                            decoration: _fieldDecoration('Ride Name'),
+                            validator: (value) {
+                              if (value == null || value.trim().isEmpty) {
+                                return 'Please enter or select a ride';
+                              }
+                              return null;
+                            },
+                          );
                         },
-                      );
-                    },
                     optionsViewBuilder: (context, onSelected, options) {
                       return Align(
                         alignment: Alignment.topLeft,
@@ -359,7 +444,10 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
                             borderRadius: BorderRadius.circular(14),
                           ),
                           child: ConstrainedBox(
-                            constraints: const BoxConstraints(maxHeight: 200, maxWidth: 300),
+                            constraints: const BoxConstraints(
+                              maxHeight: 200,
+                              maxWidth: 300,
+                            ),
                             child: ListView.builder(
                               padding: EdgeInsets.zero,
                               shrinkWrap: true,
@@ -370,7 +458,12 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
                                   onTap: () => onSelected(option),
                                   child: Padding(
                                     padding: const EdgeInsets.all(16.0),
-                                    child: Text(option, style: TextStyle(color: AppColors.themedText)),
+                                    child: Text(
+                                      option,
+                                      style: TextStyle(
+                                        color: AppColors.themedText,
+                                      ),
+                                    ),
                                   ),
                                 );
                               },
@@ -397,37 +490,50 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
                       }
                       return _expenseKinds.where((String option) {
                         return option.toLowerCase().contains(
-                              textEditingValue.text.toLowerCase(),
-                            );
+                          textEditingValue.text.toLowerCase(),
+                        );
                       });
                     },
                     onSelected: (String selection) {
                       _purposeController.text = selection;
                     },
-                    fieldViewBuilder: (context, textEditingController, focusNode, onFieldSubmitted) {
-                      // Synchronize the external controller with the internal one
-                      if (_purposeController.text != textEditingController.text && !focusNode.hasFocus) {
-                         textEditingController.text = _purposeController.text;
-                      }
-                      textEditingController.addListener(() {
-                        if (_purposeController.text != textEditingController.text) {
-                          _purposeController.text = textEditingController.text;
-                        }
-                      });
-                      
-                      return TextFormField(
-                        controller: textEditingController,
-                        focusNode: focusNode,
-                        textCapitalization: TextCapitalization.words,
-                        decoration: _fieldDecoration('Kind of (Petrol, Hotel, Room, etc.)'),
-                        validator: (value) {
-                          if (value == null || value.trim().isEmpty) {
-                            return 'Please enter kind of expense';
+                    fieldViewBuilder:
+                        (
+                          context,
+                          textEditingController,
+                          focusNode,
+                          onFieldSubmitted,
+                        ) {
+                          // Synchronize the external controller with the internal one
+                          if (_purposeController.text !=
+                                  textEditingController.text &&
+                              !focusNode.hasFocus) {
+                            textEditingController.text =
+                                _purposeController.text;
                           }
-                          return null;
+                          textEditingController.addListener(() {
+                            if (_purposeController.text !=
+                                textEditingController.text) {
+                              _purposeController.text =
+                                  textEditingController.text;
+                            }
+                          });
+
+                          return TextFormField(
+                            controller: textEditingController,
+                            focusNode: focusNode,
+                            textCapitalization: TextCapitalization.words,
+                            decoration: _fieldDecoration(
+                              'Kind of (Petrol, Hotel, Room, etc.)',
+                            ),
+                            validator: (value) {
+                              if (value == null || value.trim().isEmpty) {
+                                return 'Please enter kind of expense';
+                              }
+                              return null;
+                            },
+                          );
                         },
-                      );
-                    },
                     optionsViewBuilder: (context, onSelected, options) {
                       return Align(
                         alignment: Alignment.topLeft,
@@ -438,7 +544,10 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
                             borderRadius: BorderRadius.circular(14),
                           ),
                           child: ConstrainedBox(
-                            constraints: const BoxConstraints(maxHeight: 200, maxWidth: 300),
+                            constraints: const BoxConstraints(
+                              maxHeight: 200,
+                              maxWidth: 300,
+                            ),
                             child: ListView.builder(
                               padding: EdgeInsets.zero,
                               shrinkWrap: true,
@@ -449,7 +558,12 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
                                   onTap: () => onSelected(option),
                                   child: Padding(
                                     padding: const EdgeInsets.all(16.0),
-                                    child: Text(option, style: TextStyle(color: AppColors.themedText)),
+                                    child: Text(
+                                      option,
+                                      style: TextStyle(
+                                        color: AppColors.themedText,
+                                      ),
+                                    ),
                                   ),
                                 );
                               },
@@ -478,8 +592,13 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
                       Expanded(
                         child: TextFormField(
                           controller: _locationController,
-                          decoration: _fieldDecoration('Latitude & Longitude (Optional)'),
-                          style: TextStyle(color: AppColors.themedText, fontSize: 14),
+                          decoration: _fieldDecoration(
+                            'Latitude & Longitude (Optional)',
+                          ),
+                          style: TextStyle(
+                            color: AppColors.themedText,
+                            fontSize: 14,
+                          ),
                         ),
                       ),
                       const SizedBox(width: 8),
@@ -489,13 +608,21 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
                             ? const SizedBox(
                                 width: 20,
                                 height: 20,
-                                child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.orange),
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  color: AppColors.orange,
+                                ),
                               )
-                            : const Icon(Icons.my_location, color: AppColors.orange),
+                            : const Icon(
+                                Icons.my_location,
+                                color: AppColors.orange,
+                              ),
                         tooltip: 'Auto fetch location',
                         style: IconButton.styleFrom(
                           backgroundColor: AppColors.themedCard,
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(14),
+                          ),
                           padding: const EdgeInsets.all(16),
                         ),
                       ),
@@ -503,15 +630,13 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
                   ),
                   const SizedBox(height: 14),
                   DropdownButtonFormField<String>(
-                    value: _selectedModeOfPay,
+                    initialValue: _selectedModeOfPay,
                     dropdownColor: AppColors.themedSurface,
                     decoration: _fieldDecoration('Mode of Pay'),
                     items: _paymentModes
                         .map(
-                          (mode) => DropdownMenuItem(
-                            value: mode,
-                            child: Text(mode),
-                          ),
+                          (mode) =>
+                              DropdownMenuItem(value: mode, child: Text(mode)),
                         )
                         .toList(),
                     onChanged: (value) =>
@@ -555,7 +680,7 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
       ),
       focusedBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(14),
-        borderSide: const BorderSide(color: AppColors.orange, width: 1.4),
+        borderSide: BorderSide(color: AppColors.orange, width: 1.4),
       ),
       errorBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(14),
@@ -596,7 +721,7 @@ class RideExpenseCard extends StatelessWidget {
                 color: AppColors.orangeGlow,
                 shape: BoxShape.circle,
               ),
-              child: const Icon(Icons.receipt_long, color: AppColors.orange),
+              child: Icon(Icons.receipt_long, color: AppColors.orange),
             ),
             const SizedBox(width: 12),
             Expanded(
@@ -710,7 +835,7 @@ class _ExpenseSummaryCard extends StatelessWidget {
       ),
       child: Row(
         children: [
-          const Icon(Icons.currency_rupee, color: AppColors.orange, size: 34),
+          Icon(Icons.currency_rupee, color: AppColors.orange, size: 34),
           const SizedBox(width: 14),
           Expanded(
             child: Column(

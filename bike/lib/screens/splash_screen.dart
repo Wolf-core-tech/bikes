@@ -22,6 +22,7 @@ class _SplashScreenState extends State<SplashScreen>
   late AnimationController _textController;
   late AnimationController _taglineController;
   late AnimationController _pulseController;
+  Timer? _navigationTimer;
 
   // Logo pop-in
   late Animation<double> _logoScale;
@@ -44,8 +45,8 @@ class _SplashScreenState extends State<SplashScreen>
 
   // ─── Theme Colors ────────────────────────────────────────────────────────
   static const Color _bgColor = Color(0xFF111111); // 20% Black
-  static const Color _primaryRed = Color(0xFFE63946); // 20% Red  — hero
-  static const Color _accentRed = Color(0xFFFF6B6B); // Lighter red glow
+  static const Color _primaryRed = Color.fromARGB(255, 188, 0, 16);
+  static const Color _accentRed = Color.fromARGB(255, 188, 0, 16);
   static const Color _white = Color(0xFFFFFFFF); // 50% White — text / icon
   static const Color _dimWhite = Color(0xAAFFFFFF); // Tagline
 
@@ -120,54 +121,58 @@ class _SplashScreenState extends State<SplashScreen>
   }
 
   Future<void> _startSequence() async {
-    // Preload audio
-    try {
-      await _audioPlayer.setVolume(1.0);
-      await _audioPlayer.setSource(AssetSource('audio/bike_sound.mp3'));
-    } catch (_) {}
-
     // Logo pop-in
     _logoController.forward();
 
     // App name slides up just as logo settles
     await Future.delayed(const Duration(milliseconds: 600));
+    if (!mounted) return;
     _textController.forward();
 
     // Tagline fades in
     await Future.delayed(const Duration(milliseconds: 300));
+    if (!mounted) return;
     _taglineController.forward();
 
     // Pause, then bike races across WITH sound
     await Future.delayed(const Duration(milliseconds: 900));
-    try {
-      await _audioPlayer.resume();
-    } catch (_) {}
+    if (!mounted) return;
+    unawaited(_playBikeSound());
     _bikeController.forward();
 
     // Navigate after bike finishes based on login status
-    Timer(const Duration(milliseconds: 2000), () async {
-      if (mounted) {
-        final authProvider = context.read<AuthProvider>();
-        final isLoggedIn = await authProvider.checkLoginStatus();
-        if (!mounted) return;
-        final targetScreen = isLoggedIn
-            ? const MainShell()
-            : const LoginScreen();
-        Navigator.pushReplacement(
-          context,
-          PageRouteBuilder(
-            transitionDuration: const Duration(milliseconds: 700),
-            pageBuilder: (_, _, _) => targetScreen,
-            transitionsBuilder: (_, anim, _, child) =>
-                FadeTransition(opacity: anim, child: child),
-          ),
-        );
-      }
-    });
+    _navigationTimer = Timer(const Duration(milliseconds: 2000), _navigate);
+  }
+
+  Future<void> _playBikeSound() async {
+    try {
+      await _audioPlayer.setVolume(1.0);
+      await _audioPlayer.play(AssetSource('audio/bike_sound.mp3'));
+    } catch (error, stackTrace) {
+      debugPrint('Unable to play splash sound: $error\n$stackTrace');
+    }
+  }
+
+  Future<void> _navigate() async {
+    if (!mounted) return;
+    final isLoggedIn = await context.read<AuthProvider>().checkLoginStatus();
+    if (!mounted) return;
+
+    final targetScreen = isLoggedIn ? const MainShell() : const LoginScreen();
+    Navigator.pushReplacement(
+      context,
+      PageRouteBuilder(
+        transitionDuration: const Duration(milliseconds: 700),
+        pageBuilder: (_, _, _) => targetScreen,
+        transitionsBuilder: (_, anim, _, child) =>
+            FadeTransition(opacity: anim, child: child),
+      ),
+    );
   }
 
   @override
   void dispose() {
+    _navigationTimer?.cancel();
     _logoController.dispose();
     _bikeController.dispose();
     _textController.dispose();
@@ -200,35 +205,41 @@ class _SplashScreenState extends State<SplashScreen>
               children: [
                 // Solid glowing circle + icon
                 AnimatedBuilder(
-                  animation: _logoController,
+                  animation: Listenable.merge([
+                    _logoController,
+                    _pulseController,
+                  ]),
                   builder: (_, _) {
                     return FadeTransition(
                       opacity: _logoFade,
                       child: ScaleTransition(
                         scale: _logoScale,
-                        child: Container(
-                          width: 160,
-                          height: 160,
-                          decoration: BoxDecoration(
-                            shape: BoxShape.circle,
-                            color: _primaryRed,
-                            boxShadow: [
-                              BoxShadow(
-                                color: _primaryRed.withValues(alpha: 0.55),
-                                blurRadius: 50,
-                                spreadRadius: 6,
+                        child: Transform.scale(
+                          scale: _pulseScale.value,
+                          child: Container(
+                            width: 160,
+                            height: 160,
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              color: _primaryRed,
+                              boxShadow: [
+                                BoxShadow(
+                                  color: _primaryRed.withValues(alpha: 0.55),
+                                  blurRadius: 50,
+                                  spreadRadius: 6,
+                                ),
+                                BoxShadow(
+                                  color: _accentRed.withValues(alpha: 0.25),
+                                  blurRadius: 100,
+                                  spreadRadius: 20,
+                                ),
+                              ],
+                            ),
+                            child: ClipOval(
+                              child: Image.asset(
+                                'assets/images/logo.jpg',
+                                fit: BoxFit.cover,
                               ),
-                              BoxShadow(
-                                color: _accentRed.withValues(alpha: 0.25),
-                                blurRadius: 100,
-                                spreadRadius: 20,
-                              ),
-                            ],
-                          ),
-                          child: ClipOval(
-                            child: Image.asset(
-                              'assets/images/logo.jpg',
-                              fit: BoxFit.cover,
                             ),
                           ),
                         ),

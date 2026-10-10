@@ -83,7 +83,7 @@ class _RideNameScreenState extends State<RideNameScreen> {
                 ),
                 focusedBorder: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(14),
-                  borderSide: const BorderSide(color: AppColors.orange),
+                  borderSide: BorderSide(color: AppColors.orange),
                 ),
               ),
             ),

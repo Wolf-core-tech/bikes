@@ -200,8 +200,8 @@ class _FriendsTab extends StatelessWidget {
           ),
           ElevatedButton(
             style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.red.withValues(alpha: 0.1),
-              foregroundColor: Colors.red,
+              backgroundColor: AppColors.orange.withValues(alpha: 0.1),
+              foregroundColor: AppColors.orange,
               elevation: 0,
             ),
             onPressed: () => Navigator.pop(context, true),
@@ -227,7 +227,7 @@ class _FriendsTab extends StatelessWidget {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text('Error: $e'),
-          backgroundColor: Colors.red,
+          backgroundColor: AppColors.orange,
         ),
       );
     }
@@ -266,7 +266,7 @@ class _FriendsTab extends StatelessWidget {
               focusedBorder: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(14),
                 borderSide:
-                    const BorderSide(color: AppColors.orange, width: 1.5),
+                    BorderSide(color: AppColors.orange, width: 1.5),
               ),
             ),
           ),

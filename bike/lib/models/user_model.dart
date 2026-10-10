@@ -6,6 +6,7 @@ class UserModel {
   final String email;
   final String phone;
   final String password;
+  final String? photoUrl;
   final String bikeStatus;
   final String? bikeBrand;
   final String? bikeModel;
@@ -20,6 +21,7 @@ class UserModel {
     required this.phone,
     required this.password,
     required this.bikeStatus,
+    this.photoUrl,
     this.bikeBrand,
     this.bikeModel,
     this.bikeCc,
@@ -34,6 +36,7 @@ class UserModel {
       'name': name,
       'email': email,
       'phone': phone,
+      'photoUrl': photoUrl,
       'bikeStatus': bikeStatus,
       'bikeBrand': bikeBrand,
       'bikeModel': bikeModel,
@@ -50,6 +53,7 @@ class UserModel {
       'name': name,
       'email': email,
       'phone': phone,
+      'photoUrl': photoUrl,
       'password': password,
       'bikeStatus': bikeStatus,
       'bikeBrand': bikeBrand,
@@ -66,6 +70,7 @@ class UserModel {
       name: map['name'] ?? '',
       email: map['email'] ?? '',
       phone: map['phone'] ?? '',
+      photoUrl: map['photoUrl'] as String?,
       password: map['password'] ?? '',
       bikeStatus: map['bikeStatus'] ?? 'Don\'t have bike',
       bikeBrand: map['bikeBrand'],
@@ -80,4 +85,31 @@ class UserModel {
 
   factory UserModel.fromJson(String source) =>
       UserModel.fromMap(json.decode(source));
+
+  UserModel copyWith({
+    String? name,
+    String? email,
+    String? phone,
+    String? password,
+    String? bikeStatus,
+    String? bikeBrand,
+    String? bikeModel,
+    String? bikeCc,
+    String? bikeYear,
+    String? bikeRegistration,
+    String? photoUrl,
+  }) => UserModel(
+    uid: uid,
+    name: name ?? this.name,
+    email: email ?? this.email,
+    phone: phone ?? this.phone,
+    password: password ?? this.password,
+    bikeStatus: bikeStatus ?? this.bikeStatus,
+    bikeBrand: bikeBrand ?? this.bikeBrand,
+    bikeModel: bikeModel ?? this.bikeModel,
+    bikeCc: bikeCc ?? this.bikeCc,
+    bikeYear: bikeYear ?? this.bikeYear,
+    bikeRegistration: bikeRegistration ?? this.bikeRegistration,
+    photoUrl: photoUrl ?? this.photoUrl,
+  );
 }

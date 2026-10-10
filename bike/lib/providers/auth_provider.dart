@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_storage/firebase_storage.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../models/user_model.dart';
 import '../services/notification_service.dart';
@@ -117,6 +118,7 @@ class AuthProvider extends ChangeNotifier {
         phone: data['phone'] as String? ?? '',
         password: '',
         bikeStatus: data['bikeStatus'] as String? ?? "Don't have bike",
+        photoUrl: data['photoUrl'] as String? ?? firebaseUser.photoURL,
         bikeBrand: data['bikeBrand'] as String?,
         bikeModel: data['bikeModel'] as String?,
         bikeCc: data['bikeCc'] as String?,
@@ -174,6 +176,9 @@ class AuthProvider extends ChangeNotifier {
         bikeYear: data['bikeYear'] as String? ?? _currentUser?.bikeYear,
         bikeRegistration: data['bikeRegistration'] as String? ??
             _currentUser?.bikeRegistration,
+        photoUrl: data['photoUrl'] as String? ??
+            firebaseUser.photoURL ??
+            _currentUser?.photoUrl,
       );
       _currentUser = updated;
       await _saveCachedUser(updated);
@@ -350,6 +355,7 @@ class AuthProvider extends ChangeNotifier {
       bikeCc: updatedUser.bikeCc,
       bikeYear: updatedUser.bikeYear,
       bikeRegistration: updatedUser.bikeRegistration,
+      photoUrl: _currentUser?.photoUrl ?? updatedUser.photoUrl,
     );
     await firebaseUser.updateDisplayName(profile.name);
     try {
@@ -361,6 +367,36 @@ class AuthProvider extends ChangeNotifier {
     _currentUser = profile;
     await _saveCachedUser(profile);
     notifyListeners();
+  }
+
+  Future<String> updateProfilePhoto(
+    Uint8List imageBytes, {
+    String contentType = 'image/jpeg',
+  }) async {
+    final firebaseUser = _auth.currentUser;
+    final currentProfile = _currentUser;
+    if (firebaseUser == null || currentProfile == null) {
+      throw StateError('Sign in to upload a profile photo.');
+    }
+
+    final photoRef = FirebaseStorage.instance
+        .ref()
+        .child('profile_photos/${firebaseUser.uid}/profile');
+    final snapshot = await photoRef.putData(
+      imageBytes,
+      SettableMetadata(contentType: contentType),
+    );
+    final photoUrl = await snapshot.ref.getDownloadURL();
+    await firebaseUser.updatePhotoURL(photoUrl);
+    await _firestore.collection('users').doc(firebaseUser.uid).set({
+      'photoUrl': photoUrl,
+    }, SetOptions(merge: true));
+
+    final updatedProfile = currentProfile.copyWith(photoUrl: photoUrl);
+    _currentUser = updatedProfile;
+    await _saveCachedUser(updatedProfile);
+    notifyListeners();
+    return photoUrl;
   }
 
   // ─── LOGOUT — the ONLY way the user is signed out ─────────────────────────

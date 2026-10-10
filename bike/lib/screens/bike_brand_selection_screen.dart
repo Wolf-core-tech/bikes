@@ -1,8 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../models/bike_model.dart';
+import '../models/yamaha_model_catalog.dart';
 import '../providers/bike_provider.dart';
 import '../theme/app_theme.dart';
+import '../widgets/bike_brand_logo.dart';
+import '../widgets/uppercase_text_formatter.dart';
 
 class BikeBrandSelectionScreen extends StatefulWidget {
   final Function(BikeBrand)? onBrandSelected;
@@ -60,7 +63,7 @@ class _BikeBrandSelectionScreenState extends State<BikeBrandSelectionScreen> {
               decoration: InputDecoration(
                 hintText: 'Search brand...',
                 hintStyle: TextStyle(color: AppColors.themedGrey),
-                prefixIcon: const Icon(Icons.search, color: AppColors.orange),
+                prefixIcon: Icon(Icons.search, color: AppColors.orange),
                 filled: true,
                 fillColor: AppColors.themedCard,
                 border: OutlineInputBorder(
@@ -166,9 +169,7 @@ class _BrandCard extends StatelessWidget {
                 color: AppColors.orange.withValues(alpha: 0.2),
                 borderRadius: BorderRadius.circular(10),
               ),
-              child: Center(
-                child: Text(brand.emoji, style: const TextStyle(fontSize: 28)),
-              ),
+              child: Center(child: BikeBrandLogo(brand: brand)),
             ),
             const SizedBox(width: 16),
             Expanded(
@@ -202,6 +203,7 @@ class AddBikeDialog extends StatefulWidget {
 
 class _AddBikeDialogState extends State<AddBikeDialog> {
   BikeBrand? _selectedBrand;
+  String? _selectedYamahaModel;
   final TextEditingController _bikeNameController = TextEditingController();
   final TextEditingController _modelController = TextEditingController();
   final TextEditingController _colorController = TextEditingController();
@@ -216,7 +218,7 @@ class _AddBikeDialogState extends State<AddBikeDialog> {
       backgroundColor: AppColors.themedSurface,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(20),
-        side: const BorderSide(color: AppColors.orange, width: 1.5),
+        side: BorderSide(color: AppColors.orange, width: 1.5),
       ),
       child: SingleChildScrollView(
         child: Padding(
@@ -254,7 +256,14 @@ class _AddBikeDialogState extends State<AddBikeDialog> {
                     ),
                   );
                   if (result != null) {
-                    setState(() => _selectedBrand = result);
+                    setState(() {
+                      if (_selectedBrand != result) {
+                        _modelController.clear();
+                        _engineCapacityController.clear();
+                        _selectedYamahaModel = null;
+                      }
+                      _selectedBrand = result;
+                    });
                   }
                 },
                 child: Container(
@@ -282,10 +291,7 @@ class _AddBikeDialogState extends State<AddBikeDialog> {
                         ),
                       ),
                       if (_selectedBrand != null)
-                        Text(
-                          _selectedBrand!.emoji,
-                          style: const TextStyle(fontSize: 20),
-                        ),
+                        BikeBrandLogo(brand: _selectedBrand!),
                     ],
                   ),
                 ),
@@ -322,32 +328,77 @@ class _AddBikeDialogState extends State<AddBikeDialog> {
               const SizedBox(height: 16),
 
               // Model
-              Text(
-                'Model',
-                style: TextStyle(
-                  color: AppColors.themedText,
-                  fontSize: 14,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-              const SizedBox(height: 8),
-              TextField(
-                controller: _modelController,
-                style: TextStyle(color: AppColors.themedText),
-                decoration: InputDecoration(
-                  hintText: 'e.g., Classic 350',
-                  hintStyle: TextStyle(color: AppColors.themedGrey),
-                  filled: true,
-                  fillColor: AppColors.themedCard,
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(10),
-                    borderSide: const BorderSide(
+              if (_selectedBrand == BikeBrand.yamahaMotorIndia) ...[
+                DropdownButtonFormField<String>(
+                  initialValue: _selectedYamahaModel,
+                  isExpanded: true,
+                  dropdownColor: AppColors.themedCard,
+                  decoration: InputDecoration(
+                    labelText: 'Model',
+                    prefixIcon: const Icon(
+                      Icons.speed,
                       color: AppColors.orange,
-                      width: 1,
+                    ),
+                    filled: true,
+                    fillColor: AppColors.themedCard,
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(10),
+                      borderSide: const BorderSide(
+                        color: AppColors.orange,
+                        width: 1,
+                      ),
+                    ),
+                  ),
+                  hint: const Text('Select Yamaha model'),
+                  items: yamahaModelEngineCc.keys
+                      .map(
+                        (model) => DropdownMenuItem<String>(
+                          value: model,
+                          child: Text(
+                            model,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                      )
+                      .toList(),
+                  onChanged: (model) {
+                    if (model == null) return;
+                    setState(() {
+                      _selectedYamahaModel = model;
+                      _modelController.text = model;
+                      _engineCapacityController.text =
+                          yamahaModelEngineCc[model]!;
+                    });
+                  },
+                ),
+              ] else ...[
+                Text(
+                  'Model',
+                  style: TextStyle(
+                    color: AppColors.themedText,
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                TextField(
+                  controller: _modelController,
+                  style: TextStyle(color: AppColors.themedText),
+                  decoration: InputDecoration(
+                    hintText: 'e.g., Classic 350',
+                    hintStyle: TextStyle(color: AppColors.themedGrey),
+                    filled: true,
+                    fillColor: AppColors.themedCard,
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(10),
+                      borderSide: const BorderSide(
+                        color: AppColors.orange,
+                        width: 1,
+                      ),
                     ),
                   ),
                 ),
-              ),
+              ],
               const SizedBox(height: 16),
 
               // Color
@@ -391,6 +442,8 @@ class _AddBikeDialogState extends State<AddBikeDialog> {
               const SizedBox(height: 8),
               TextField(
                 controller: _licensePlateController,
+                textCapitalization: TextCapitalization.characters,
+                inputFormatters: [UppercaseTextFormatter()],
                 style: TextStyle(color: AppColors.themedText),
                 decoration: InputDecoration(
                   hintText: 'e.g., TN-01-XX-0001',
@@ -417,6 +470,7 @@ class _AddBikeDialogState extends State<AddBikeDialog> {
               TextField(
                 controller: _engineCapacityController,
                 keyboardType: TextInputType.number,
+                readOnly: _selectedBrand == BikeBrand.yamahaMotorIndia,
                 style: TextStyle(color: AppColors.themedText),
                 decoration: InputDecoration(
                   hintText: 'e.g., 350',

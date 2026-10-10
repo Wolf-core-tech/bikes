@@ -555,7 +555,7 @@ class _GroupDetailCard extends StatelessWidget {
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
                         Text(
-                          '${entry.key.emoji} ${entry.key.displayName}',
+                          entry.key.displayName,
                           style: TextStyle(
                             color: AppColors.themedText,
                             fontSize: 13,
@@ -728,7 +728,7 @@ class _LeadershipStatBar extends StatelessWidget {
             value: percentage / 100,
             minHeight: 12,
             backgroundColor: AppColors.themedGrey.withValues(alpha: 0.2),
-            valueColor: const AlwaysStoppedAnimation(AppColors.orange),
+            valueColor: AlwaysStoppedAnimation(AppColors.orange),
           ),
         ),
       ],

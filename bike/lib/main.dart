@@ -19,6 +19,7 @@ import 'theme/app_theme.dart';
 import 'providers/community_provider.dart';
 import 'widgets/community_dialogs.dart';
 import 'widgets/friend_presence_label.dart';
+import 'widgets/profile_photo.dart';
 import 'screens/friends_screen.dart';
 import 'screens/notifications_screen.dart';
 import 'package:firebase_core/firebase_core.dart';
@@ -28,13 +29,20 @@ import 'screens/chats_screen.dart';
 import 'services/chat_service.dart';
 import 'services/notification_service.dart';
 import 'screens/expenses_screen.dart';
+import 'screens/bike_brand_selection_screen.dart';
+import 'screens/ride_reports_screen.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
-  
+
   await NotificationService().init();
+  try {
+    await loadSavedRideExpenses();
+  } catch (error, stackTrace) {
+    debugPrint('Unable to load saved ride expenses: $error\n$stackTrace');
+  }
 
   runApp(
     MultiProvider(
@@ -290,7 +298,7 @@ class _HomeScreen extends StatelessWidget {
                     width: 10,
                     height: 10,
                     decoration: BoxDecoration(
-                      color: Colors.red,
+                      color: AppColors.orange,
                       shape: BoxShape.circle,
                       border: Border.all(color: Colors.white, width: 1.5),
                     ),
@@ -308,23 +316,7 @@ class _HomeScreen extends StatelessWidget {
             // ── Profile Section ──
             Row(
               children: [
-                Container(
-                  width: 56,
-                  height: 56,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    color: AppColors.orangeGlow,
-                    border: Border.all(
-                      color: const Color.fromARGB(255, 187, 17, 31),
-                      width: 2,
-                    ),
-                  ),
-                  child: const Icon(
-                    Icons.person,
-                    color: AppColors.orange,
-                    size: 30,
-                  ),
-                ),
+                ProfilePhoto(photoUrl: currentUser?.photoUrl, size: 56),
                 const SizedBox(width: 12),
                 Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -363,7 +355,10 @@ class _HomeScreen extends StatelessWidget {
                   );
                 },
                 icon: const Icon(Icons.receipt_long),
-                label: const Text('Manage Expenses', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                label: const Text(
+                  'Manage Expenses',
+                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                ),
                 style: ElevatedButton.styleFrom(
                   backgroundColor: AppColors.orange.withValues(alpha: 0.15),
                   foregroundColor: AppColors.orange,
@@ -371,7 +366,10 @@ class _HomeScreen extends StatelessWidget {
                   minimumSize: const Size.fromHeight(52),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(16),
-                    side: BorderSide(color: AppColors.orange.withValues(alpha: 0.5), width: 1.5),
+                    side: BorderSide(
+                      color: AppColors.orange.withValues(alpha: 0.5),
+                      width: 1.5,
+                    ),
                   ),
                 ),
               ),
@@ -459,6 +457,22 @@ class _HomeScreen extends StatelessWidget {
                 ),
               ),
             ),
+            const SizedBox(height: 12),
+            SizedBox(
+              width: double.infinity,
+              child: OutlinedButton.icon(
+                onPressed: () => showDialog<void>(
+                  context: context,
+                  builder: (_) => const AddBikeDialog(),
+                ),
+                icon: const Icon(Icons.two_wheeler),
+                label: const Text('Add Bike'),
+                style: OutlinedButton.styleFrom(
+                  minimumSize: const Size.fromHeight(52),
+                  shape: const StadiumBorder(),
+                ),
+              ),
+            ),
 
             const SizedBox(height: 24),
             Row(
@@ -481,12 +495,15 @@ class _HomeScreen extends StatelessWidget {
                   ),
                   child: Container(
                     padding: const EdgeInsets.symmetric(
-                        horizontal: 12, vertical: 6),
+                      horizontal: 12,
+                      vertical: 6,
+                    ),
                     decoration: BoxDecoration(
                       color: AppColors.orangeGlow,
                       borderRadius: BorderRadius.circular(20),
                       border: Border.all(
-                          color: AppColors.orange.withValues(alpha: 0.4)),
+                        color: AppColors.orange.withValues(alpha: 0.4),
+                      ),
                     ),
                     child: Row(
                       mainAxisSize: MainAxisSize.min,
@@ -500,8 +517,11 @@ class _HomeScreen extends StatelessWidget {
                           ),
                         ),
                         const SizedBox(width: 4),
-                        const Icon(Icons.chevron_right,
-                            color: AppColors.orange, size: 16),
+                        const Icon(
+                          Icons.chevron_right,
+                          color: AppColors.orange,
+                          size: 16,
+                        ),
                       ],
                     ),
                   ),
@@ -551,7 +571,7 @@ class _HomeScreen extends StatelessWidget {
                           backgroundColor: AppColors.orangeGlow,
                           child: Text(
                             _friendInitials(friends[index].name),
-                            style: const TextStyle(color: AppColors.orange),
+                            style: TextStyle(color: AppColors.orange),
                           ),
                         ),
                         title: Text(
@@ -626,6 +646,17 @@ class _HomeScreen extends StatelessWidget {
                   title: 'Squad',
                   iconColor: AppColors.themedText,
                   onTap: onSquadTap ?? () {},
+                ),
+                _ActionCard(
+                  icon: Icons.summarize_outlined,
+                  title: 'Generate Report',
+                  iconColor: AppColors.themedText,
+                  onTap: () => Navigator.push<void>(
+                    context,
+                    MaterialPageRoute<void>(
+                      builder: (_) => const RideReportsScreen(),
+                    ),
+                  ),
                 ),
               ],
             ),
@@ -705,10 +736,7 @@ class _ActionCard extends StatelessWidget {
         decoration: BoxDecoration(
           color: const Color.fromARGB(255, 255, 255, 255),
           borderRadius: BorderRadius.circular(18),
-          border: Border.all(
-            color: iconColor ?? Color.fromARGB(255, 187, 17, 31),
-            width: 1.2,
-          ),
+          border: Border.all(color: iconColor ?? AppColors.orange, width: 1.2),
           boxShadow: [
             BoxShadow(
               color: const Color.fromARGB(

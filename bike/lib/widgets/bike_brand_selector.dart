@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 
 import '../models/bike_brands.dart';
+import '../models/bike_model.dart';
 import '../theme/app_theme.dart';
+import 'bike_brand_logo.dart';
 
 class BikeBrandSelector extends StatelessWidget {
   const BikeBrandSelector({
@@ -52,7 +54,12 @@ class BikeBrandSelector extends StatelessWidget {
               ),
               child: Row(
                 children: [
-                  const Icon(Icons.search, color: Color(0xFFE63946)),
+                  if (selectedBrand == null)
+                    const Icon(Icons.search, color: AppColors.orange)
+                  else
+                    BikeBrandLogo(
+                      brand: bikeBrandFromRegistrationName(selectedBrand!),
+                    ),
                   const SizedBox(width: 12),
                   Expanded(
                     child: Column(
@@ -82,7 +89,7 @@ class BikeBrandSelector extends StatelessWidget {
                   ),
                   Icon(
                     hasSelection ? Icons.check_circle : Icons.expand_more,
-                    color: const Color(0xFFE63946),
+                    color: AppColors.orange,
                   ),
                 ],
               ),
@@ -131,7 +138,7 @@ class _BikeBrandSearchSheetState extends State<_BikeBrandSearchSheet> {
           children: [
             Row(
               children: [
-                const Icon(Icons.two_wheeler, color: Color(0xFFE63946)),
+                const Icon(Icons.two_wheeler, color: AppColors.orange),
                 const SizedBox(width: 10),
                 Expanded(
                   child: Text(
@@ -159,7 +166,7 @@ class _BikeBrandSearchSheetState extends State<_BikeBrandSearchSheet> {
               decoration: InputDecoration(
                 hintText: 'Search bike brand...',
                 hintStyle: TextStyle(color: AppColors.themedGrey),
-                prefixIcon: const Icon(Icons.search, color: Color(0xFFE63946)),
+                prefixIcon: const Icon(Icons.search, color: AppColors.orange),
                 filled: true,
                 fillColor: AppColors.themedBackground,
                 contentPadding: const EdgeInsets.symmetric(vertical: 14),
@@ -174,7 +181,7 @@ class _BikeBrandSearchSheetState extends State<_BikeBrandSearchSheet> {
                 focusedBorder: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(16),
                   borderSide: const BorderSide(
-                    color: Color(0xFFE63946),
+                    color: AppColors.orange,
                     width: 2,
                   ),
                 ),
@@ -208,13 +215,13 @@ class _BikeBrandSearchSheetState extends State<_BikeBrandSearchSheet> {
                               borderRadius: BorderRadius.circular(14),
                               side: BorderSide(
                                 color: isSelected
-                                    ? const Color(0xFFE63946)
+                                    ? AppColors.orange
                                     : AppColors.themedGreyBorder,
                               ),
                             ),
                             leading: const Icon(
                               Icons.two_wheeler,
-                              color: Color(0xFFE63946),
+                              color: AppColors.orange,
                             ),
                             title: Text(
                               brand,
@@ -228,7 +235,7 @@ class _BikeBrandSearchSheetState extends State<_BikeBrandSearchSheet> {
                                   ? Icons.check_circle
                                   : Icons.radio_button_unchecked,
                               color: isSelected
-                                  ? const Color(0xFFE63946)
+                                  ? AppColors.orange
                                   : AppColors.themedGrey,
                             ),
                             onTap: () => Navigator.pop(context, brand),
