@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../models/bike_model.dart';
-import '../models/yamaha_model_catalog.dart';
+import '../models/bike_model_catalog.dart';
 import '../providers/bike_provider.dart';
 import '../theme/app_theme.dart';
 import '../widgets/bike_brand_logo.dart';
+import '../widgets/bike_brand_selector.dart';
+import '../widgets/bike_model_selector.dart';
 import '../widgets/uppercase_text_formatter.dart';
 
 class BikeBrandSelectionScreen extends StatefulWidget {
@@ -195,22 +197,35 @@ class _BrandCard extends StatelessWidget {
 }
 
 class AddBikeDialog extends StatefulWidget {
-  const AddBikeDialog({super.key});
+  final Bike? bike;
+
+  const AddBikeDialog({super.key, this.bike});
 
   @override
   State<AddBikeDialog> createState() => _AddBikeDialogState();
 }
 
 class _AddBikeDialogState extends State<AddBikeDialog> {
-  BikeBrand? _selectedBrand;
-  String? _selectedYamahaModel;
+  String? _selectedBrand;
+  BikeModelData? _selectedModel;
   final TextEditingController _bikeNameController = TextEditingController();
-  final TextEditingController _modelController = TextEditingController();
   final TextEditingController _colorController = TextEditingController();
   final TextEditingController _licensePlateController = TextEditingController();
-  final TextEditingController _engineCapacityController =
-      TextEditingController();
   int? _yearOfPurchase;
+
+  @override
+  void initState() {
+    super.initState();
+    final bike = widget.bike;
+    if (bike == null) return;
+    _selectedBrand = BikeModelCatalog.brandNameFor(bike.brand);
+    if (_selectedBrand == null) return;
+    _selectedModel = BikeModelCatalog.find(_selectedBrand!, bike.model ?? '');
+    _bikeNameController.text = bike.name;
+    _colorController.text = bike.color ?? '';
+    _licensePlateController.text = bike.licensePlate ?? '';
+    _yearOfPurchase = bike.yearOfPurchase;
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -227,8 +242,8 @@ class _AddBikeDialogState extends State<AddBikeDialog> {
             crossAxisAlignment: CrossAxisAlignment.start,
             mainAxisSize: MainAxisSize.min,
             children: [
-              const Text(
-                'Add Your Bike',
+              Text(
+                widget.bike == null ? 'Add Your Bike' : 'Edit Your Bike',
                 style: TextStyle(
                   color: AppColors.orange,
                   fontSize: 20,
@@ -237,66 +252,15 @@ class _AddBikeDialogState extends State<AddBikeDialog> {
               ),
               const SizedBox(height: 20),
 
-              // Brand Selection
-              Text(
-                'Select Brand *',
-                style: TextStyle(
-                  color: AppColors.themedText,
-                  fontSize: 14,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-              const SizedBox(height: 10),
-              GestureDetector(
-                onTap: () async {
-                  final result = await Navigator.push<BikeBrand>(
-                    context,
-                    MaterialPageRoute(
-                      builder: (context) => const BikeBrandSelectionScreen(),
-                    ),
-                  );
-                  if (result != null) {
-                    setState(() {
-                      if (_selectedBrand != result) {
-                        _modelController.clear();
-                        _engineCapacityController.clear();
-                        _selectedYamahaModel = null;
-                      }
-                      _selectedBrand = result;
-                    });
-                  }
+              BikeBrandSelector(
+                selectedBrand: _selectedBrand,
+                onSelected: (brand) {
+                  setState(() {
+                    if (_selectedBrand != brand) _selectedModel = null;
+                    _selectedBrand = brand;
+                  });
                 },
-                child: Container(
-                  padding: const EdgeInsets.all(14),
-                  decoration: BoxDecoration(
-                    color: AppColors.themedCard,
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(
-                      color: _selectedBrand != null
-                          ? AppColors.orange
-                          : AppColors.themedGrey,
-                      width: 1,
-                    ),
-                  ),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Text(
-                        _selectedBrand?.displayName ?? 'Tap to select brand',
-                        style: TextStyle(
-                          color: _selectedBrand != null
-                              ? AppColors.themedText
-                              : AppColors.themedGrey,
-                          fontSize: 14,
-                        ),
-                      ),
-                      if (_selectedBrand != null)
-                        BikeBrandLogo(brand: _selectedBrand!),
-                    ],
-                  ),
-                ),
               ),
-              const SizedBox(height: 16),
 
               // Bike Name
               Text(
@@ -310,6 +274,7 @@ class _AddBikeDialogState extends State<AddBikeDialog> {
               const SizedBox(height: 8),
               TextField(
                 controller: _bikeNameController,
+                onChanged: (_) => setState(() {}),
                 style: TextStyle(color: AppColors.themedText),
                 decoration: InputDecoration(
                   hintText: 'e.g., My Royal Enfield',
@@ -327,78 +292,13 @@ class _AddBikeDialogState extends State<AddBikeDialog> {
               ),
               const SizedBox(height: 16),
 
-              // Model
-              if (_selectedBrand == BikeBrand.yamahaMotorIndia) ...[
-                DropdownButtonFormField<String>(
-                  initialValue: _selectedYamahaModel,
-                  isExpanded: true,
-                  dropdownColor: AppColors.themedCard,
-                  decoration: InputDecoration(
-                    labelText: 'Model',
-                    prefixIcon: const Icon(
-                      Icons.speed,
-                      color: AppColors.orange,
-                    ),
-                    filled: true,
-                    fillColor: AppColors.themedCard,
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(10),
-                      borderSide: const BorderSide(
-                        color: AppColors.orange,
-                        width: 1,
-                      ),
-                    ),
-                  ),
-                  hint: const Text('Select Yamaha model'),
-                  items: yamahaModelEngineCc.keys
-                      .map(
-                        (model) => DropdownMenuItem<String>(
-                          value: model,
-                          child: Text(
-                            model,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ),
-                      )
-                      .toList(),
-                  onChanged: (model) {
-                    if (model == null) return;
-                    setState(() {
-                      _selectedYamahaModel = model;
-                      _modelController.text = model;
-                      _engineCapacityController.text =
-                          yamahaModelEngineCc[model]!;
-                    });
-                  },
-                ),
-              ] else ...[
-                Text(
-                  'Model',
-                  style: TextStyle(
-                    color: AppColors.themedText,
-                    fontSize: 14,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-                const SizedBox(height: 8),
-                TextField(
-                  controller: _modelController,
-                  style: TextStyle(color: AppColors.themedText),
-                  decoration: InputDecoration(
-                    hintText: 'e.g., Classic 350',
-                    hintStyle: TextStyle(color: AppColors.themedGrey),
-                    filled: true,
-                    fillColor: AppColors.themedCard,
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(10),
-                      borderSide: const BorderSide(
-                        color: AppColors.orange,
-                        width: 1,
-                      ),
-                    ),
-                  ),
-                ),
-              ],
+              BikeModelSelector(
+                brand: _selectedBrand,
+                selectedModel: _selectedModel,
+                onModelSelected: (model) {
+                  setState(() => _selectedModel = model);
+                },
+              ),
               const SizedBox(height: 16),
 
               // Color
@@ -447,33 +347,6 @@ class _AddBikeDialogState extends State<AddBikeDialog> {
                 style: TextStyle(color: AppColors.themedText),
                 decoration: InputDecoration(
                   hintText: 'e.g., TN-01-XX-0001',
-                  hintStyle: TextStyle(color: AppColors.themedGrey),
-                  filled: true,
-                  fillColor: AppColors.themedCard,
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(10),
-                    borderSide: const BorderSide(
-                      color: AppColors.orange,
-                      width: 1,
-                    ),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 16),
-
-              // Engine Capacity
-              const Text(
-                'Engine Capacity (CC)',
-                style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
-              ),
-              const SizedBox(height: 8),
-              TextField(
-                controller: _engineCapacityController,
-                keyboardType: TextInputType.number,
-                readOnly: _selectedBrand == BikeBrand.yamahaMotorIndia,
-                style: TextStyle(color: AppColors.themedText),
-                decoration: InputDecoration(
-                  hintText: 'e.g., 350',
                   hintStyle: TextStyle(color: AppColors.themedGrey),
                   filled: true,
                   fillColor: AppColors.themedCard,
@@ -574,16 +447,20 @@ class _AddBikeDialogState extends State<AddBikeDialog> {
                     child: ElevatedButton(
                       onPressed:
                           _selectedBrand == null ||
-                              _bikeNameController.text.isEmpty
+                              _selectedModel == null ||
+                              _selectedModel!.brand != _selectedBrand ||
+                              _bikeNameController.text.trim().isEmpty
                           ? null
                           : () {
+                              final brand = bikeBrandFromRegistrationName(
+                                _selectedBrand!,
+                              );
                               final bike = Bike(
-                                id: 'bike_${DateTime.now().millisecondsSinceEpoch}',
-                                name: _bikeNameController.text,
-                                brand: _selectedBrand!,
-                                model: _modelController.text.isNotEmpty
-                                    ? _modelController.text
-                                    : null,
+                                id: widget.bike?.id ??
+                                    'bike_${DateTime.now().millisecondsSinceEpoch}',
+                                name: _bikeNameController.text.trim(),
+                                brand: brand,
+                                model: _selectedModel!.modelName,
                                 yearOfPurchase: _yearOfPurchase,
                                 licensePlate:
                                     _licensePlateController.text.isNotEmpty
@@ -592,21 +469,26 @@ class _AddBikeDialogState extends State<AddBikeDialog> {
                                 color: _colorController.text.isNotEmpty
                                     ? _colorController.text
                                     : null,
-                                engineCapacity:
-                                    _engineCapacityController.text.isNotEmpty
-                                    ? double.tryParse(
-                                        _engineCapacityController.text,
-                                      )
-                                    : null,
+                                engineCapacity: _selectedModel!.engineCC,
+                                vehicleType: _selectedModel!.vehicleType,
                               );
 
-                              context.read<BikeProvider>().addBike(bike);
+                              if (widget.bike == null) {
+                                context.read<BikeProvider>().addBike(bike);
+                              } else {
+                                context.read<BikeProvider>().updateBike(
+                                  widget.bike!.id,
+                                  bike,
+                                );
+                              }
                               Navigator.pop(context, bike);
 
                               ScaffoldMessenger.of(context).showSnackBar(
                                 SnackBar(
                                   content: Text(
-                                    'Bike "${bike.name}" added successfully! 🏍️',
+                                    widget.bike == null
+                                        ? 'Bike "${bike.name}" added successfully!'
+                                        : 'Bike "${bike.name}" updated successfully!',
                                   ),
                                   backgroundColor: AppColors.orange,
                                 ),
@@ -623,7 +505,7 @@ class _AddBikeDialogState extends State<AddBikeDialog> {
                         ),
                       ),
                       child: Text(
-                        'Add Bike',
+                        widget.bike == null ? 'Add Bike' : 'Save Changes',
                         style: TextStyle(
                           color: AppColors.themedBackground,
                           fontWeight: FontWeight.w700,
@@ -643,10 +525,8 @@ class _AddBikeDialogState extends State<AddBikeDialog> {
   @override
   void dispose() {
     _bikeNameController.dispose();
-    _modelController.dispose();
     _colorController.dispose();
     _licensePlateController.dispose();
-    _engineCapacityController.dispose();
     super.dispose();
   }
 }

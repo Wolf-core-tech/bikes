@@ -19,6 +19,9 @@ class BikeBrands {
     'Jawa',
     'Yezdi',
     'Husqvarna',
+    'Ather Energy',
+    'Ola Electric',
+    'Simple Energy',
     'Other',
   ];
 }

@@ -122,6 +122,7 @@ class AuthProvider extends ChangeNotifier {
         bikeBrand: data['bikeBrand'] as String?,
         bikeModel: data['bikeModel'] as String?,
         bikeCc: data['bikeCc'] as String?,
+        bikeVehicleType: data['bikeVehicleType'] as String?,
         bikeYear: data['bikeYear'] as String?,
         bikeRegistration: data['bikeRegistration'] as String?,
       );
@@ -173,6 +174,8 @@ class AuthProvider extends ChangeNotifier {
         bikeBrand: data['bikeBrand'] as String? ?? _currentUser?.bikeBrand,
         bikeModel: data['bikeModel'] as String? ?? _currentUser?.bikeModel,
         bikeCc: data['bikeCc'] as String? ?? _currentUser?.bikeCc,
+        bikeVehicleType: data['bikeVehicleType'] as String? ??
+            _currentUser?.bikeVehicleType,
         bikeYear: data['bikeYear'] as String? ?? _currentUser?.bikeYear,
         bikeRegistration: data['bikeRegistration'] as String? ??
             _currentUser?.bikeRegistration,
@@ -214,6 +217,7 @@ class AuthProvider extends ChangeNotifier {
         bikeBrand: newUser.bikeBrand,
         bikeModel: newUser.bikeModel,
         bikeCc: newUser.bikeCc,
+        bikeVehicleType: newUser.bikeVehicleType,
         bikeYear: newUser.bikeYear,
         bikeRegistration: newUser.bikeRegistration,
       );
@@ -241,6 +245,7 @@ class AuthProvider extends ChangeNotifier {
         bikeBrand: newUser.bikeBrand,
         bikeModel: newUser.bikeModel,
         bikeCc: newUser.bikeCc,
+        bikeVehicleType: newUser.bikeVehicleType,
         bikeYear: newUser.bikeYear,
         bikeRegistration: newUser.bikeRegistration,
       );
@@ -353,6 +358,7 @@ class AuthProvider extends ChangeNotifier {
       bikeBrand: updatedUser.bikeBrand,
       bikeModel: updatedUser.bikeModel,
       bikeCc: updatedUser.bikeCc,
+      bikeVehicleType: updatedUser.bikeVehicleType,
       bikeYear: updatedUser.bikeYear,
       bikeRegistration: updatedUser.bikeRegistration,
       photoUrl: _currentUser?.photoUrl ?? updatedUser.photoUrl,

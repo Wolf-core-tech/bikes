@@ -557,12 +557,13 @@ class _HomeScreen extends StatelessWidget {
                 ),
               )
             else
-              Container(
-                decoration: BoxDecoration(
-                  color: AppColors.themedCard,
+              Material(
+                color: AppColors.themedCard,
+                shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(16),
-                  border: Border.all(color: AppColors.themedGreyBorder),
+                  side: BorderSide(color: AppColors.themedGreyBorder),
                 ),
+                clipBehavior: Clip.antiAlias,
                 child: Column(
                   children: [
                     for (var index = 0; index < friends.length; index++) ...[
@@ -647,18 +648,63 @@ class _HomeScreen extends StatelessWidget {
                   iconColor: AppColors.themedText,
                   onTap: onSquadTap ?? () {},
                 ),
-                _ActionCard(
-                  icon: Icons.summarize_outlined,
-                  title: 'Generate Report',
-                  iconColor: AppColors.themedText,
-                  onTap: () => Navigator.push<void>(
-                    context,
-                    MaterialPageRoute<void>(
-                      builder: (_) => const RideReportsScreen(),
+              ],
+            ),
+            const SizedBox(height: 14),
+            OverflowBox(
+              alignment: Alignment.center,
+              minWidth: MediaQuery.sizeOf(context).width - 8,
+              maxWidth: MediaQuery.sizeOf(context).width - 8,
+              child: SizedBox(
+                width: MediaQuery.sizeOf(context).width - 8,
+                height: 52,
+                child: Material(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(16),
+                  child: InkWell(
+                    borderRadius: BorderRadius.circular(16),
+                    onTap: () => Navigator.push<void>(
+                      context,
+                      MaterialPageRoute<void>(
+                        builder: (_) => const RideReportsScreen(),
+                      ),
+                    ),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 16),
+                      decoration: BoxDecoration(
+                        border: Border.all(
+                          color: AppColors.themedGreyBorder,
+                          width: 1.2,
+                        ),
+                        borderRadius: BorderRadius.circular(16),
+                      ),
+                      child: Row(
+                        children: [
+                          const Icon(
+                            Icons.summarize_outlined,
+                            color: AppColors.danger,
+                          ),
+                          const SizedBox(width: 12),
+                          const Expanded(
+                            child: Text(
+                              'Generate Report',
+                              style: TextStyle(
+                                color: AppColors.black,
+                                fontSize: 15,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                          ),
+                          Icon(
+                            Icons.chevron_right,
+                            color: AppColors.themedGrey,
+                          ),
+                        ],
+                      ),
                     ),
                   ),
                 ),
-              ],
+              ),
             ),
             const SizedBox(height: 16),
           ],

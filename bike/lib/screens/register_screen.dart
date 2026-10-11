@@ -4,7 +4,7 @@ import 'package:provider/provider.dart';
 import 'package:firebase_auth/firebase_auth.dart' show FirebaseAuthException;
 import '../models/user_model.dart';
 import '../models/bike_model.dart';
-import '../models/yamaha_model_catalog.dart';
+import '../models/bike_model_catalog.dart';
 import '../providers/auth_provider.dart';
 import '../providers/bike_provider.dart';
 import '../theme/app_theme.dart';
@@ -12,6 +12,7 @@ import '../utils/indian_phone_number.dart';
 import '../utils/password_validator.dart';
 import '../widgets/auth_header.dart';
 import '../widgets/bike_brand_selector.dart';
+import '../widgets/bike_model_selector.dart';
 import '../widgets/uppercase_text_formatter.dart';
 import 'login_screen.dart';
 
@@ -29,15 +30,13 @@ class _RegisterScreenState extends State<RegisterScreen> {
   final _passwordController = TextEditingController();
 
   // Bike details controllers
-  final _bikeModelController = TextEditingController();
-  final _bikeCcController = TextEditingController();
   final _bikeYearController = TextEditingController();
   final _bikeRegistrationController = TextEditingController();
 
   bool _obscurePassword = true;
   String _bikeStatus = 'Don\'t have bike'; // Default selection
   String? _selectedBikeBrand;
-  String? _selectedYamahaModel;
+  BikeModelData? _selectedBikeModel;
 
   void _register() async {
     final name = _nameController.text.trim();
@@ -96,14 +95,12 @@ class _RegisterScreenState extends State<RegisterScreen> {
     }
 
     if (_bikeStatus == 'Have bike') {
-      final model = _bikeModelController.text.trim();
-      final cc = _bikeCcController.text.trim();
       final year = _bikeYearController.text.trim();
       final reg = _bikeRegistrationController.text.trim();
 
       if (_selectedBikeBrand == null ||
-          model.isEmpty ||
-          cc.isEmpty ||
+          _selectedBikeModel == null ||
+          _selectedBikeModel!.brand != _selectedBikeBrand ||
           year.isEmpty ||
           reg.isEmpty) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -125,9 +122,14 @@ class _RegisterScreenState extends State<RegisterScreen> {
       bikeStatus: _bikeStatus,
       bikeBrand: _bikeStatus == 'Have bike' ? _selectedBikeBrand : null,
       bikeModel: _bikeStatus == 'Have bike'
-          ? _bikeModelController.text.trim()
+          ? _selectedBikeModel!.modelName
           : null,
-      bikeCc: _bikeStatus == 'Have bike' ? _bikeCcController.text.trim() : null,
+      bikeCc: _bikeStatus == 'Have bike'
+          ? _selectedBikeModel!.engineCC?.toString()
+          : null,
+      bikeVehicleType: _bikeStatus == 'Have bike'
+          ? _selectedBikeModel!.vehicleType
+          : null,
       bikeYear: _bikeStatus == 'Have bike'
           ? _bikeYearController.text.trim()
           : null,
@@ -153,18 +155,18 @@ class _RegisterScreenState extends State<RegisterScreen> {
     // Add bike to BikeProvider if user registered a bike
     if (_bikeStatus == 'Have bike' && mounted) {
       final bikeBrandText = _selectedBikeBrand!;
-      final bikeModelText = _bikeModelController.text.trim();
+      final selectedModel = _selectedBikeModel!;
       context.read<BikeProvider>().addBike(
         Bike(
           id: 'bike_${DateTime.now().millisecondsSinceEpoch}',
-          name: '$bikeBrandText $bikeModelText',
+          name: '$bikeBrandText ${selectedModel.modelName}',
           brand: bikeBrandFromRegistrationName(bikeBrandText),
-          model: bikeModelText,
+          model: selectedModel.modelName,
           yearOfPurchase: int.tryParse(_bikeYearController.text.trim()) ?? 2023,
           licensePlate: _bikeRegistrationController.text.trim(),
           color: 'Red & Black',
-          engineCapacity:
-              double.tryParse(_bikeCcController.text.trim()) ?? 150.0,
+          engineCapacity: selectedModel.engineCC,
+          vehicleType: selectedModel.vehicleType,
         ),
       );
     }
@@ -198,63 +200,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
     _emailController.dispose();
     _phoneController.dispose();
     _passwordController.dispose();
-    _bikeModelController.dispose();
-    _bikeCcController.dispose();
     _bikeYearController.dispose();
     _bikeRegistrationController.dispose();
     super.dispose();
-  }
-
-  Widget _buildYamahaModelDropdown() {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 20),
-      child: DropdownButtonFormField<String>(
-        initialValue: _selectedYamahaModel,
-        isExpanded: true,
-        dropdownColor: AppColors.themedCard,
-        style: TextStyle(
-          color: AppColors.themedText,
-          fontSize: 16,
-          fontWeight: FontWeight.w600,
-        ),
-        decoration: InputDecoration(
-          labelText: 'Bike Model *',
-          labelStyle: TextStyle(color: AppColors.themedGrey),
-          prefixIcon: const Icon(Icons.speed, color: AppColors.orange),
-          filled: true,
-          fillColor: AppColors.themedCard,
-          border: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(16),
-            borderSide: BorderSide(color: AppColors.themedGreyBorder),
-          ),
-          enabledBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(16),
-            borderSide: BorderSide(color: AppColors.themedGreyBorder),
-          ),
-          focusedBorder: const OutlineInputBorder(
-            borderRadius: BorderRadius.all(Radius.circular(16)),
-            borderSide: BorderSide(color: AppColors.orange, width: 2),
-          ),
-        ),
-        hint: const Text('Select Yamaha model'),
-        items: yamahaModelEngineCc.keys
-            .map(
-              (model) => DropdownMenuItem<String>(
-                value: model,
-                child: Text(model, overflow: TextOverflow.ellipsis),
-              ),
-            )
-            .toList(),
-        onChanged: (model) {
-          if (model == null) return;
-          setState(() {
-            _selectedYamahaModel = model;
-            _bikeModelController.text = model;
-            _bikeCcController.text = yamahaModelEngineCc[model]!;
-          });
-        },
-      ),
-    );
   }
 
   Widget _buildTextField({
@@ -461,43 +409,24 @@ class _RegisterScreenState extends State<RegisterScreen> {
                       onSelected: (brand) {
                         setState(() {
                           if (_selectedBikeBrand != brand) {
-                            _bikeModelController.clear();
-                            _bikeCcController.clear();
-                            _selectedYamahaModel = null;
+                            _selectedBikeModel = null;
                           }
                           _selectedBikeBrand = brand;
                         });
                       },
                     ),
-                    if (_selectedBikeBrand == 'Yamaha')
-                      _buildYamahaModelDropdown()
-                    else
-                      _buildTextField(
-                        controller: _bikeModelController,
-                        label: 'Bike Model * (e.g., R15, CBR 250R)',
-                        icon: Icons.speed,
-                      ),
-                    Row(
-                      children: [
-                        Expanded(
-                          child: _buildTextField(
-                            controller: _bikeCcController,
-                            label: 'Engine CC *',
-                            icon: Icons.flash_on,
-                            keyboardType: TextInputType.number,
-                            readOnly: _selectedBikeBrand == 'Yamaha',
-                          ),
-                        ),
-                        const SizedBox(width: 16),
-                        Expanded(
-                          child: _buildTextField(
-                            controller: _bikeYearController,
-                            label: 'Year *',
-                            icon: Icons.calendar_today,
-                            keyboardType: TextInputType.number,
-                          ),
-                        ),
-                      ],
+                    BikeModelSelector(
+                      brand: _selectedBikeBrand,
+                      selectedModel: _selectedBikeModel,
+                      onModelSelected: (model) {
+                        setState(() => _selectedBikeModel = model);
+                      },
+                    ),
+                    _buildTextField(
+                      controller: _bikeYearController,
+                      label: 'Year *',
+                      icon: Icons.calendar_today,
+                      keyboardType: TextInputType.number,
                     ),
                     _buildTextField(
                       controller: _bikeRegistrationController,

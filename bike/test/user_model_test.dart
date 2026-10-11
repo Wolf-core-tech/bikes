@@ -10,11 +10,23 @@ void main() {
       phone: '+911234567890',
       password: 'Rider123',
       bikeStatus: 'Have bike',
+      bikeBrand: 'Hero MotoCorp',
+      bikeModel: 'Splendor Plus',
+      bikeCc: '97.2',
+      bikeVehicleType: 'Bike',
       photoUrl: 'https://example.com/profile.jpg',
     );
 
     expect(UserModel.fromJson(user.toJson()).photoUrl, user.photoUrl);
     expect(UserModel.fromMap(user.toFirestoreMap()).photoUrl, user.photoUrl);
+    expect(
+      UserModel.fromJson(user.toJson()).bikeVehicleType,
+      user.bikeVehicleType,
+    );
+    expect(
+      UserModel.fromMap(user.toFirestoreMap()).bikeVehicleType,
+      user.bikeVehicleType,
+    );
     expect(user.copyWith(name: 'New Rider').photoUrl, user.photoUrl);
   });
 

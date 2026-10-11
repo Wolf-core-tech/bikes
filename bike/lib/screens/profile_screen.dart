@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
 import '../models/bike_model.dart';
+import '../models/bike_model_catalog.dart';
 import '../models/user_model.dart';
 import '../providers/bike_provider.dart';
 import '../providers/auth_provider.dart';
@@ -137,6 +138,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           bikeBrand: currentUser.bikeBrand,
                           bikeModel: currentUser.bikeModel,
                           bikeCc: currentUser.bikeCc,
+                          bikeVehicleType: currentUser.bikeVehicleType,
                           bikeYear: currentUser.bikeYear,
                           bikeRegistration: currentUser.bikeRegistration,
                           photoUrl: currentUser.photoUrl,
@@ -163,6 +165,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           bikeBrand: currentUser.bikeBrand,
                           bikeModel: currentUser.bikeModel,
                           bikeCc: currentUser.bikeCc,
+                          bikeVehicleType: currentUser.bikeVehicleType,
                           bikeYear: currentUser.bikeYear,
                           bikeRegistration: currentUser.bikeRegistration,
                           photoUrl: currentUser.photoUrl,
@@ -285,6 +288,20 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       child: _BikeCard(
                         bike: bike,
                         isActive: bikeProvider.activeBike?.id == bike.id,
+                        onEdit: BikeModelCatalog.brandNameFor(bike.brand) !=
+                                    null &&
+                                BikeModelCatalog.find(
+                                      BikeModelCatalog.brandNameFor(
+                                        bike.brand,
+                                      )!,
+                                      bike.model ?? '',
+                                    ) !=
+                                    null
+                            ? () => showDialog<void>(
+                                context: context,
+                                builder: (_) => AddBikeDialog(bike: bike),
+                              )
+                            : null,
                         onTap: () {
                           bikeProvider.setActiveBike(bike);
                         },
@@ -691,6 +708,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       bikeBrand: currentUser.bikeBrand,
                       bikeModel: currentUser.bikeModel,
                       bikeCc: currentUser.bikeCc,
+                      bikeVehicleType: currentUser.bikeVehicleType,
                       bikeYear: currentUser.bikeYear,
                       bikeRegistration: currentUser.bikeRegistration,
                       photoUrl: currentUser.photoUrl,
@@ -914,12 +932,14 @@ class _BikeCard extends StatelessWidget {
   final bool isActive;
   final VoidCallback onTap;
   final VoidCallback onDelete;
+  final VoidCallback? onEdit;
 
   const _BikeCard({
     required this.bike,
     required this.isActive,
     required this.onTap,
     required this.onDelete,
+    this.onEdit,
   });
 
   @override
@@ -977,26 +997,41 @@ class _BikeCard extends StatelessWidget {
                     ],
                   ),
                 ),
-                if (isActive)
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 8,
-                      vertical: 4,
-                    ),
-                    decoration: BoxDecoration(
-                      color: AppColors.orange.withValues(alpha: 0.2),
-                      borderRadius: BorderRadius.circular(6),
-                      border: Border.all(color: AppColors.orange, width: 1),
-                    ),
-                    child: const Text(
-                      'Active',
-                      style: TextStyle(
-                        color: AppColors.orange,
-                        fontSize: 11,
-                        fontWeight: FontWeight.w600,
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    if (isActive)
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 4,
+                        ),
+                        decoration: BoxDecoration(
+                          color: AppColors.orange.withValues(alpha: 0.2),
+                          borderRadius: BorderRadius.circular(6),
+                          border: Border.all(color: AppColors.orange, width: 1),
+                        ),
+                        child: const Text(
+                          'Active',
+                          style: TextStyle(
+                            color: AppColors.orange,
+                            fontSize: 11,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
                       ),
-                    ),
-                  ),
+                    if (onEdit != null)
+                      IconButton(
+                        tooltip: 'Edit bike',
+                        onPressed: onEdit,
+                        icon: const Icon(
+                          Icons.edit_outlined,
+                          color: AppColors.orange,
+                          size: 20,
+                        ),
+                      ),
+                  ],
+                ),
               ],
             ),
             const SizedBox(height: 10),
@@ -1079,7 +1114,7 @@ class _BikeCard extends StatelessWidget {
                   ],
                   if (bike.engineCapacity != null)
                     Text(
-                      '${bike.engineCapacity!.toStringAsFixed(0)} cc',
+                      '${bike.engineCapacity == bike.engineCapacity!.roundToDouble() ? bike.engineCapacity!.toStringAsFixed(0) : bike.engineCapacity} cc',
                       style: TextStyle(
                         color: AppColors.themedGrey.withValues(alpha: 0.8),
                         fontSize: 12,

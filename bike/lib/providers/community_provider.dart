@@ -56,7 +56,8 @@ class CommunityProvider extends ChangeNotifier {
   List<UserModel> friendsFor(String userId, List<UserModel> users) {
     final friendIds = _friends[userId.trim()] ?? const <String>[];
     return users.where((user) {
-      final matchesUid = user.uid != null && friendIds.contains(user.uid!.trim());
+      final matchesUid =
+          user.uid != null && friendIds.contains(user.uid!.trim());
       final matchesEmail = friendIds.contains(user.email.trim().toLowerCase());
       return matchesUid || matchesEmail;
     }).toList();
@@ -104,10 +105,15 @@ class CommunityProvider extends ChangeNotifier {
           .where('receiverId', isEqualTo: user.uid)
           .where('status', isEqualTo: 'pending')
           .snapshots()
-          .listen((snapshot) {
-            received = snapshot;
-            updateRequests();
-          }),
+          .listen(
+            (snapshot) {
+              received = snapshot;
+              updateRequests();
+            },
+            onError: (Object error, StackTrace stackTrace) {
+              debugPrint('Unable to load received friend requests: $error');
+            },
+          ),
     );
     _relationshipSubscriptions.add(
       _firestore
@@ -115,28 +121,38 @@ class CommunityProvider extends ChangeNotifier {
           .where('senderId', isEqualTo: user.uid)
           .where('status', isEqualTo: 'pending')
           .snapshots()
-          .listen((snapshot) {
-            sent = snapshot;
-            updateRequests();
-          }),
+          .listen(
+            (snapshot) {
+              sent = snapshot;
+              updateRequests();
+            },
+            onError: (Object error, StackTrace stackTrace) {
+              debugPrint('Unable to load sent friend requests: $error');
+            },
+          ),
     );
     _relationshipSubscriptions.add(
       _firestore
           .collection('friendships')
           .where('members', arrayContains: user.uid)
           .snapshots()
-          .listen((friendships) {
-            _friends = {
-              user.uid: friendships.docs
-                  .expand(
-                    (document) =>
-                        List<String>.from(document.data()['members'] as List),
-                  )
-                  .where((memberId) => memberId != user.uid)
-                  .toList(),
-            };
-            notifyListeners();
-          }),
+          .listen(
+            (friendships) {
+              _friends = {
+                user.uid: friendships.docs
+                    .expand(
+                      (document) =>
+                          List<String>.from(document.data()['members'] as List),
+                    )
+                    .where((memberId) => memberId != user.uid)
+                    .toList(),
+              };
+              notifyListeners();
+            },
+            onError: (Object error, StackTrace stackTrace) {
+              debugPrint('Unable to load friendships: $error');
+            },
+          ),
     );
 
     QuerySnapshot<Map<String, dynamic>>? receivedByEmail;
@@ -145,8 +161,10 @@ class CommunityProvider extends ChangeNotifier {
       final existing = _requests.map((r) => r.id).toSet();
       final extra = receivedByEmail!.docs
           .where((d) => !existing.contains(d.id))
-          .map((document) =>
-              FriendRequest.fromJson({...document.data(), 'id': document.id}))
+          .map(
+            (document) =>
+                FriendRequest.fromJson({...document.data(), 'id': document.id}),
+          )
           .toList();
       if (extra.isNotEmpty) {
         _requests = [..._requests, ...extra];
@@ -155,19 +173,22 @@ class CommunityProvider extends ChangeNotifier {
     }
 
     // Also listen by receiverEmail so users with stub IDs still see requests
-    if (user.email != null) {
-      _relationshipSubscriptions.add(
-        _firestore
-            .collection('friendRequests')
-            .where('receiverEmail', isEqualTo: user.email)
-            .where('status', isEqualTo: 'pending')
-            .snapshots()
-            .listen((snapshot) {
+    _relationshipSubscriptions.add(
+      _firestore
+          .collection('friendRequests')
+          .where('receiverEmail', isEqualTo: user.email)
+          .where('status', isEqualTo: 'pending')
+          .snapshots()
+          .listen(
+            (snapshot) {
               receivedByEmail = snapshot;
               updateRequestsByEmail();
-            }),
-      );
-    }
+            },
+            onError: (Object error, StackTrace stackTrace) {
+              debugPrint('Unable to load friend requests by email: $error');
+            },
+          ),
+    );
   }
 
   List<T> _decodeList<T>(String? raw, T Function(Map<String, dynamic>) parse) {
@@ -205,7 +226,11 @@ class CommunityProvider extends ChangeNotifier {
       if (byEmail.docs.isNotEmpty) {
         final doc = byEmail.docs.first;
         if (doc.id == currentId) throw Exception('You cannot add yourself.');
-        return UserModel.fromMap({...doc.data(), 'uid': doc.id, 'password': ''});
+        return UserModel.fromMap({
+          ...doc.data(),
+          'uid': doc.id,
+          'password': '',
+        });
       }
     } catch (e) {
       if (e.toString().contains('cannot add yourself')) rethrow;
@@ -215,7 +240,11 @@ class CommunityProvider extends ChangeNotifier {
     try {
       final snapshot = await _firestore.collection('users').get();
       final freshUsers = snapshot.docs.map((doc) {
-        return UserModel.fromMap({...doc.data(), 'uid': doc.id, 'password': ''});
+        return UserModel.fromMap({
+          ...doc.data(),
+          'uid': doc.id,
+          'password': '',
+        });
       }).toList();
 
       final foundUser = freshUsers.firstWhere((user) {
@@ -351,7 +380,8 @@ class CommunityProvider extends ChangeNotifier {
     final batch = _firestore.batch();
     for (final doc in query.docs) {
       final members = List<String>.from(doc.data()['members'] as List);
-      final matchesUid = friend.uid != null && members.contains(friend.uid!.trim());
+      final matchesUid =
+          friend.uid != null && members.contains(friend.uid!.trim());
       final matchesEmail = members.contains(friend.email.trim().toLowerCase());
       if (matchesUid || matchesEmail) {
         batch.delete(doc.reference);

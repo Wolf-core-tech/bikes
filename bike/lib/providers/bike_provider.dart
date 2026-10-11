@@ -47,6 +47,9 @@ class BikeProvider extends ChangeNotifier {
     final index = _bikes.indexWhere((b) => b.id == bikeId);
     if (index != -1) {
       _bikes[index] = updatedBike;
+      if (_activeBike?.id == bikeId) {
+        _activeBike = updatedBike;
+      }
       notifyListeners();
     }
   }

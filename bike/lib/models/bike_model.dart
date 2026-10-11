@@ -170,6 +170,12 @@ BikeBrand bikeBrandFromRegistrationName(String brand) {
       return BikeBrand.husqvarna;
     case 'Other':
       return BikeBrand.other;
+    case 'Ather Energy':
+      return BikeBrand.atherEnergy;
+    case 'Ola Electric':
+      return BikeBrand.olaElectric;
+    case 'Simple Energy':
+      return BikeBrand.simpleEnergy;
     default:
       throw ArgumentError.value(brand, 'brand', 'Unknown bike brand');
   }
@@ -184,6 +190,7 @@ class Bike {
   final String? licensePlate;
   final String? color;
   final double? engineCapacity; // in CC
+  final String? vehicleType;
 
   Bike({
     required this.id,
@@ -194,6 +201,7 @@ class Bike {
     this.licensePlate,
     this.color,
     this.engineCapacity,
+    this.vehicleType,
   });
 
   Bike copyWith({
@@ -205,6 +213,7 @@ class Bike {
     String? licensePlate,
     String? color,
     double? engineCapacity,
+    String? vehicleType,
   }) {
     return Bike(
       id: id ?? this.id,
@@ -215,6 +224,7 @@ class Bike {
       licensePlate: licensePlate ?? this.licensePlate,
       color: color ?? this.color,
       engineCapacity: engineCapacity ?? this.engineCapacity,
+      vehicleType: vehicleType ?? this.vehicleType,
     );
   }
 }

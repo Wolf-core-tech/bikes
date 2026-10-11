@@ -11,6 +11,7 @@ class UserModel {
   final String? bikeBrand;
   final String? bikeModel;
   final String? bikeCc;
+  final String? bikeVehicleType;
   final String? bikeYear;
   final String? bikeRegistration;
 
@@ -25,6 +26,7 @@ class UserModel {
     this.bikeBrand,
     this.bikeModel,
     this.bikeCc,
+    this.bikeVehicleType,
     this.bikeYear,
     this.bikeRegistration,
   });
@@ -41,6 +43,7 @@ class UserModel {
       'bikeBrand': bikeBrand,
       'bikeModel': bikeModel,
       'bikeCc': bikeCc,
+      'bikeVehicleType': bikeVehicleType,
       'bikeYear': bikeYear,
       'bikeRegistration': bikeRegistration,
     };
@@ -59,6 +62,7 @@ class UserModel {
       'bikeBrand': bikeBrand,
       'bikeModel': bikeModel,
       'bikeCc': bikeCc,
+      'bikeVehicleType': bikeVehicleType,
       'bikeYear': bikeYear,
       'bikeRegistration': bikeRegistration,
     };
@@ -76,6 +80,7 @@ class UserModel {
       bikeBrand: map['bikeBrand'],
       bikeModel: map['bikeModel'],
       bikeCc: map['bikeCc'],
+      bikeVehicleType: map['bikeVehicleType'],
       bikeYear: map['bikeYear'],
       bikeRegistration: map['bikeRegistration'],
     );
@@ -95,6 +100,7 @@ class UserModel {
     String? bikeBrand,
     String? bikeModel,
     String? bikeCc,
+    String? bikeVehicleType,
     String? bikeYear,
     String? bikeRegistration,
     String? photoUrl,
@@ -108,6 +114,7 @@ class UserModel {
     bikeBrand: bikeBrand ?? this.bikeBrand,
     bikeModel: bikeModel ?? this.bikeModel,
     bikeCc: bikeCc ?? this.bikeCc,
+    bikeVehicleType: bikeVehicleType ?? this.bikeVehicleType,
     bikeYear: bikeYear ?? this.bikeYear,
     bikeRegistration: bikeRegistration ?? this.bikeRegistration,
     photoUrl: photoUrl ?? this.photoUrl,
