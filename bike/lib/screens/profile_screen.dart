@@ -1,4 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
+import 'package:image_cropper/image_cropper.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
 import '../models/bike_model.dart';
@@ -8,6 +11,7 @@ import '../providers/bike_provider.dart';
 import '../providers/auth_provider.dart';
 import '../theme/app_theme.dart';
 import '../utils/indian_phone_number.dart';
+import '../utils/profile_photo_validation.dart';
 import '../widgets/bike_brand_logo.dart';
 import '../widgets/profile_photo.dart';
 import 'bike_brand_selection_screen.dart';
@@ -65,7 +69,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
               ),
               child: Column(
                 children: [
-                  ProfilePhoto(photoUrl: currentUser?.photoUrl),
+                  _ProfilePhotoPicker(
+                    photoUrl: currentUser?.photoUrl,
+                    photoPath: currentUser?.photoPath,
+                    compact: true,
+                  ),
                   const SizedBox(height: 16),
                   Text(
                     displayName,
@@ -288,8 +296,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       child: _BikeCard(
                         bike: bike,
                         isActive: bikeProvider.activeBike?.id == bike.id,
-                        onEdit: BikeModelCatalog.brandNameFor(bike.brand) !=
-                                    null &&
+                        onEdit:
+                            BikeModelCatalog.brandNameFor(bike.brand) != null &&
                                 BikeModelCatalog.find(
                                       BikeModelCatalog.brandNameFor(
                                         bike.brand,
@@ -583,7 +591,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              _ProfilePhotoPicker(photoUrl: currentUser?.photoUrl),
+              _ProfilePhotoPicker(
+                photoUrl: currentUser?.photoUrl,
+                photoPath: currentUser?.photoPath,
+              ),
               const SizedBox(height: 20),
 
               // Name Field
@@ -737,9 +748,15 @@ class _ProfileScreenState extends State<ProfileScreen> {
 }
 
 class _ProfilePhotoPicker extends StatefulWidget {
-  const _ProfilePhotoPicker({required this.photoUrl});
+  const _ProfilePhotoPicker({
+    required this.photoUrl,
+    this.photoPath,
+    this.compact = false,
+  });
 
   final String? photoUrl;
+  final String? photoPath;
+  final bool compact;
 
   @override
   State<_ProfilePhotoPicker> createState() => _ProfilePhotoPickerState();
@@ -747,69 +764,375 @@ class _ProfilePhotoPicker extends StatefulWidget {
 
 class _ProfilePhotoPickerState extends State<_ProfilePhotoPicker> {
   final _imagePicker = ImagePicker();
+  bool _isBusy = false;
+  bool _isManaging = false;
   bool _isUploading = false;
   String? _photoUrl;
+  String? _photoPath;
 
   @override
   void initState() {
     super.initState();
     _photoUrl = widget.photoUrl;
+    _photoPath = widget.photoPath;
   }
 
-  Future<void> _choosePhoto() async {
+  @override
+  void didUpdateWidget(covariant _ProfilePhotoPicker oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.photoUrl != widget.photoUrl ||
+        oldWidget.photoPath != widget.photoPath) {
+      _photoUrl = widget.photoUrl;
+      _photoPath = widget.photoPath;
+    }
+  }
+
+  Future<void> _managePhoto() async {
+    if (_isManaging) return;
+    _isManaging = true;
     try {
+      final action = await showModalBottomSheet<_ProfilePhotoAction>(
+        context: context,
+        showDragHandle: true,
+        isScrollControlled: true,
+        backgroundColor: AppColors.themedSurface,
+        shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+        ),
+        builder: (sheetContext) => SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(12, 0, 12, 16),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                ListTile(
+                  leading: const Icon(
+                    Icons.photo_camera_outlined,
+                    color: AppColors.orange,
+                  ),
+                  title: const Text('Take photo'),
+                  onTap: () =>
+                      Navigator.pop(sheetContext, _ProfilePhotoAction.camera),
+                ),
+                ListTile(
+                  leading: const Icon(
+                    Icons.photo_library_outlined,
+                    color: AppColors.orange,
+                  ),
+                  title: const Text('Choose from gallery'),
+                  onTap: () =>
+                      Navigator.pop(sheetContext, _ProfilePhotoAction.gallery),
+                ),
+                ListTile(
+                  leading: Icon(
+                    Icons.delete_outline,
+                    color:
+                        _photoUrl?.isNotEmpty == true ||
+                            _photoPath?.isNotEmpty == true
+                        ? AppColors.danger
+                        : AppColors.themedGrey,
+                  ),
+                  title: const Text('Remove photo'),
+                  enabled:
+                      _photoUrl?.isNotEmpty == true ||
+                      _photoPath?.isNotEmpty == true,
+                  onTap: () =>
+                      Navigator.pop(sheetContext, _ProfilePhotoAction.remove),
+                ),
+                const Divider(),
+                ListTile(
+                  leading: const Icon(Icons.close),
+                  title: const Text('Cancel'),
+                  onTap: () => Navigator.pop(sheetContext),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+      if (!mounted || action == null) return;
+
+      setState(() => _isBusy = true);
+      if (action == _ProfilePhotoAction.remove) {
+        final shouldRemove = await _confirmRemoval();
+        if (!mounted || !shouldRemove) return;
+        await context.read<AuthProvider>().removeProfilePhoto();
+        if (!mounted) return;
+        setState(() {
+          _photoUrl = null;
+          _photoPath = null;
+        });
+        _showMessage('Profile photo removed.');
+        return;
+      }
+
       final image = await _imagePicker.pickImage(
-        source: ImageSource.gallery,
-        imageQuality: 85,
-        maxWidth: 1024,
-        maxHeight: 1024,
+        source: action == _ProfilePhotoAction.camera
+            ? ImageSource.camera
+            : ImageSource.gallery,
+        imageQuality: 90,
+        maxWidth: 2048,
+        maxHeight: 2048,
       );
       if (image == null || !mounted) return;
 
-      setState(() => _isUploading = true);
-      final photoUrl = await context.read<AuthProvider>().updateProfilePhoto(
-        await image.readAsBytes(),
-        contentType: image.mimeType ?? 'image/jpeg',
-      );
-      if (mounted) {
-        setState(() {
-          _photoUrl = photoUrl;
-          _isUploading = false;
-        });
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Profile photo updated.')),
-        );
+      final sourceLength = await image.length();
+      if (sourceLength > ProfilePhotoValidation.maxSourceBytes) {
+        throw const FormatException('Image must be smaller than 20 MB.');
       }
+      final sourceBytes = await image.readAsBytes();
+      ProfilePhotoValidation.validateAndGetContentType(
+        sourceBytes,
+        maxBytes: ProfilePhotoValidation.maxSourceBytes,
+      );
+      if (!mounted) return;
+
+      final croppedImage = await ImageCropper().cropImage(
+        sourcePath: image.path,
+        maxWidth: 512,
+        maxHeight: 512,
+        aspectRatio: const CropAspectRatio(ratioX: 1, ratioY: 1),
+        compressFormat: ImageCompressFormat.jpg,
+        compressQuality: 82,
+        uiSettings: [
+          AndroidUiSettings(
+            toolbarTitle: 'Crop profile photo',
+            toolbarColor: AppColors.orange,
+            toolbarWidgetColor: Colors.white,
+            activeControlsWidgetColor: AppColors.orange,
+            cropStyle: CropStyle.circle,
+            lockAspectRatio: true,
+          ),
+          IOSUiSettings(
+            title: 'Crop profile photo',
+            doneButtonTitle: 'Use photo',
+            cancelButtonTitle: 'Cancel',
+            cropStyle: CropStyle.circle,
+            aspectRatioLockEnabled: true,
+            resetAspectRatioEnabled: false,
+            aspectRatioPickerButtonHidden: true,
+          ),
+          if (kIsWeb)
+            WebUiSettings(
+              context: context,
+              presentStyle: WebPresentStyle.dialog,
+              viewwMode: WebViewMode.mode_1,
+              dragMode: WebDragMode.move,
+              minCropBoxWidth: 100,
+              minCropBoxHeight: 100,
+              themeData: const WebThemeData(rotateIconColor: AppColors.orange),
+            ),
+        ],
+      );
+      if (croppedImage == null || !mounted) return;
+
+      final croppedBytes = await croppedImage.readAsBytes();
+      ProfilePhotoValidation.validateAndGetContentType(
+        croppedBytes,
+        maxBytes: ProfilePhotoValidation.maxSourceBytes,
+      );
+      final imageBytes = ProfilePhotoValidation.prepareForUpload(croppedBytes);
+      final contentType = ProfilePhotoValidation.validateAndGetContentType(
+        imageBytes,
+        maxBytes: ProfilePhotoValidation.maxUploadBytes,
+      );
+      if (contentType != 'image/jpeg') {
+        throw const FormatException('The cropped photo must be a JPEG image.');
+      }
+
+      final confirmed = await _showPreview(imageBytes);
+      if (!mounted) return;
+      if (confirmed != true) return;
+
+      setState(() => _isUploading = true);
+      final photoPath = await context.read<AuthProvider>().updateProfilePhoto(
+        imageBytes,
+        contentType: contentType,
+      );
+      if (!mounted) return;
+      setState(() {
+        _photoUrl = null;
+        _photoPath = photoPath;
+      });
+      _showMessage('Profile photo updated.');
+    } on PlatformException catch (error) {
+      if (!mounted) return;
+      final message = switch (error.code) {
+        'camera_access_denied' || 'camera_access_denied_without_prompt' =>
+          'Camera access is denied. Enable it in your device settings.',
+        'photo_access_denied' ||
+        'photo_access_denied_without_prompt' ||
+        'read_external_storage_denied' =>
+          'Photo access is denied. Enable it in your device settings.',
+        _ =>
+          'Could not process the profile photo: ${error.message ?? error.code}',
+      };
+      _showMessage(message, isError: true);
     } catch (error) {
       if (!mounted) return;
-      setState(() => _isUploading = false);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Could not update profile photo: $error')),
-      );
+      _showMessage('Could not update profile photo: $error', isError: true);
+    } finally {
+      _isManaging = false;
+      if (mounted) {
+        setState(() {
+          _isBusy = false;
+          _isUploading = false;
+        });
+      }
     }
+  }
+
+  Future<bool> _confirmRemoval() async {
+    return await showDialog<bool>(
+          context: context,
+          builder: (dialogContext) => AlertDialog(
+            backgroundColor: AppColors.themedSurface,
+            title: const Text('Remove profile photo?'),
+            content: const Text(
+              'Your default profile icon will be shown instead.',
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(dialogContext, false),
+                child: const Text('Cancel'),
+              ),
+              TextButton(
+                onPressed: () => Navigator.pop(dialogContext, true),
+                child: const Text('Remove'),
+              ),
+            ],
+          ),
+        ) ??
+        false;
+  }
+
+  Future<bool?> _showPreview(Uint8List imageBytes) => showDialog<bool>(
+    context: context,
+    builder: (dialogContext) => AlertDialog(
+      backgroundColor: AppColors.themedSurface,
+      title: const Text('Preview profile photo'),
+      content: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 360),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ClipOval(
+              child: Image.memory(
+                imageBytes,
+                width: 200,
+                height: 200,
+                fit: BoxFit.cover,
+                errorBuilder: (_, _, _) => const SizedBox(
+                  width: 200,
+                  height: 200,
+                  child: Icon(Icons.person, size: 100),
+                ),
+              ),
+            ),
+            const SizedBox(height: 12),
+            Text(
+              'This cropped photo will appear in a circular profile frame.',
+              textAlign: TextAlign.center,
+              style: TextStyle(color: AppColors.themedGrey),
+            ),
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(dialogContext, false),
+          child: const Text('Retake'),
+        ),
+        ElevatedButton(
+          onPressed: () => Navigator.pop(dialogContext, true),
+          style: ElevatedButton.styleFrom(
+            backgroundColor: AppColors.orange,
+            foregroundColor: Colors.white,
+          ),
+          child: const Text('Save photo'),
+        ),
+      ],
+    ),
+  );
+
+  void _showMessage(String message, {bool isError = false}) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        backgroundColor: isError ? AppColors.danger : null,
+      ),
+    );
   }
 
   @override
   Widget build(BuildContext context) {
     return Column(
       children: [
-        ProfilePhoto(photoUrl: _photoUrl, size: 88),
+        Semantics(
+          button: true,
+          label: 'Edit profile photo',
+          child: InkWell(
+            onTap: _isBusy ? null : _managePhoto,
+            customBorder: const CircleBorder(),
+            child: Stack(
+              clipBehavior: Clip.none,
+              children: [
+                ProfilePhoto(
+                  photoUrl: _photoUrl,
+                  photoPath: _photoPath,
+                  size: 88,
+                ),
+                Positioned(
+                  right: 0,
+                  bottom: 0,
+                  child: Container(
+                    width: 30,
+                    height: 30,
+                    decoration: BoxDecoration(
+                      color: AppColors.orange,
+                      shape: BoxShape.circle,
+                      border: Border.all(
+                        color: AppColors.themedSurface,
+                        width: 2,
+                      ),
+                    ),
+                    child: Icon(
+                      _isBusy ? Icons.hourglass_top : Icons.camera_alt,
+                      size: 15,
+                      color: Colors.white,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
         const SizedBox(height: 10),
         OutlinedButton.icon(
-          onPressed: _isUploading ? null : _choosePhoto,
-          icon: _isUploading
+          onPressed: _isBusy ? null : _managePhoto,
+          icon: _isBusy
               ? const SizedBox(
                   width: 16,
                   height: 16,
                   child: CircularProgressIndicator(strokeWidth: 2),
                 )
               : const Icon(Icons.add_a_photo_outlined),
-          label: Text(_isUploading ? 'Uploading photo...' : 'Change photo'),
+          label: Text(
+            _isBusy
+                ? _isUploading
+                      ? 'Uploading photo...'
+                      : 'Preparing photo...'
+                : widget.compact
+                ? 'Edit photo'
+                : 'Change photo',
+          ),
         ),
       ],
     );
   }
 }
+
+enum _ProfilePhotoAction { camera, gallery, remove }
 
 class _ProfileInfoTile extends StatelessWidget {
   final IconData icon;

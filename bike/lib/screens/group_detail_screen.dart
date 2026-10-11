@@ -817,7 +817,9 @@ class _MembersTab extends StatelessWidget {
                       backgroundColor: AppColors.themedSurface,
                       title: Text(rider.name),
                       content: Text(
-                        profile?.email ?? rider.role.displayName,
+                        profile?.email.isNotEmpty == true
+                            ? profile!.email
+                            : rider.role.displayName,
                         style: TextStyle(color: AppColors.themedGrey),
                       ),
                       actions: [

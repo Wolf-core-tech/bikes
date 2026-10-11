@@ -3,7 +3,9 @@ import 'package:provider/provider.dart';
 import '../providers/auth_provider.dart';
 import '../theme/app_theme.dart';
 import 'login_screen.dart';
+import 'notification_settings_screen.dart';
 import 'profile_screen.dart';
+import 'security_settings_screen.dart';
 
 class SettingsScreen extends StatelessWidget {
   const SettingsScreen({super.key});
@@ -37,13 +39,23 @@ class SettingsScreen extends StatelessWidget {
               icon: Icons.security_outlined,
               title: 'Security',
               subtitle: 'Password and authentication',
-              onTap: () {},
+              onTap: () => Navigator.push<void>(
+                context,
+                MaterialPageRoute<void>(
+                  builder: (_) => const SecuritySettingsScreen(),
+                ),
+              ),
             ),
             _SettingsTile(
               icon: Icons.notifications_outlined,
               title: 'Notifications',
               subtitle: 'Manage notification preferences',
-              onTap: () {},
+              onTap: () => Navigator.push(
+                context,
+                MaterialPageRoute<void>(
+                  builder: (_) => const NotificationSettingsScreen(),
+                ),
+              ),
             ),
 
             const SizedBox(height: 8),

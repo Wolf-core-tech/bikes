@@ -12,7 +12,7 @@ class FriendPresenceLabel extends StatelessWidget {
   Widget build(BuildContext context) {
     return StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
       stream: FirebaseFirestore.instance
-          .collection('users')
+          .collection('friendPresence')
           .doc(userId)
           .snapshots(),
       builder: (context, snapshot) {

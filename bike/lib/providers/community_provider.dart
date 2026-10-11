@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'dart:math';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:cloud_functions/cloud_functions.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -216,55 +217,39 @@ class CommunityProvider extends ChangeNotifier {
     final normalized = query.trim().toLowerCase();
     if (normalized.isEmpty) return null;
 
-    // 1. Direct Firestore query by exact email
-    try {
-      final byEmail = await _firestore
-          .collection('users')
-          .where('email', isEqualTo: query.trim())
-          .limit(1)
+    final Map<String, dynamic>? riderData;
+    if (normalized.contains('@')) {
+      final result = await FirebaseFunctions.instance
+          .httpsCallable('findRiderByEmail')
+          .call<Map<String, dynamic>?>({'email': normalized});
+      riderData = result.data;
+    } else {
+      final matches = await _firestore
+          .collection('publicProfiles')
+          .orderBy('nameLower')
+          .startAt([normalized])
+          .endAt(['$normalized\uf8ff'])
+          .limit(20)
           .get();
-      if (byEmail.docs.isNotEmpty) {
-        final doc = byEmail.docs.first;
-        if (doc.id == currentId) throw Exception('You cannot add yourself.');
-        return UserModel.fromMap({
-          ...doc.data(),
-          'uid': doc.id,
-          'password': '',
-        });
-      }
-    } catch (e) {
-      if (e.toString().contains('cannot add yourself')) rethrow;
+      riderData = matches.docs.isEmpty
+          ? null
+          : {...matches.docs.first.data(), 'uid': matches.docs.first.id};
     }
 
-    // 2. Case-insensitive scan of all Firestore users
-    try {
-      final snapshot = await _firestore.collection('users').get();
-      final freshUsers = snapshot.docs.map((doc) {
-        return UserModel.fromMap({
-          ...doc.data(),
-          'uid': doc.id,
-          'password': '',
-        });
-      }).toList();
-
-      final foundUser = freshUsers.firstWhere((user) {
-        return user.email.toLowerCase() == normalized ||
-            user.name.toLowerCase() == normalized ||
-            user.name.toLowerCase().contains(normalized);
-      });
-      if (_userId(foundUser) == currentId) {
-        throw Exception('You cannot add yourself.');
-      }
-      return foundUser;
-    } on StateError {
-      // Not found in Firestore — fall through to Auth check
-    } catch (e) {
-      if (e.toString().contains('cannot add yourself')) rethrow;
+    if (riderData == null) return null;
+    final user = UserModel.fromMap({
+      'uid': riderData['uid'],
+      'name': riderData['name'] as String? ?? 'Rider',
+      'photoPath': riderData['photoPath'] as String?,
+      'photoUrl': riderData['photoUrl'] as String?,
+      'email': '',
+      'phone': '',
+      'password': '',
+    });
+    if (_userId(user) == currentId) {
+      throw Exception('You cannot add yourself.');
     }
-
-    // 3. Not found in Firestore. The rider may have registered before the
-    //    database was created. Ask them to open the app and log in once.
-    return null;
+    return user;
   }
 
   String _userId(UserModel user) => user.uid?.trim().isNotEmpty == true

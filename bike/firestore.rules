@@ -5,6 +5,64 @@ service cloud.firestore {
       return request.auth != null;
     }
 
+    function validAnnouncement(data) {
+      return data.keys().hasOnly([
+          'title', 'description', 'category', 'creatorUserId',
+          'creatorDisplayName', 'createdAt', 'updatedAt',
+          'eventDateTime', 'eventLocalDateTime', 'timeZone',
+          'meetingPlace', 'meetingAddress', 'latitude', 'longitude',
+          'additionalInstructions', 'rsvpDeadline',
+          'rsvpDeadlineLocalDateTime', 'status', 'publishedAt',
+          'isPublished', 'cancellationMessage'
+        ]) &&
+        data.title is string && data.title.size() <= 100 &&
+        data.description is string && data.description.size() <= 5000 &&
+        data.category in [
+          'ride', 'meetup', 'community_news', 'important_update', 'emergency'
+        ] &&
+        data.creatorUserId is string &&
+        data.creatorDisplayName is string &&
+        data.creatorDisplayName.size() <= 100 &&
+        data.createdAt is timestamp &&
+        data.updatedAt is timestamp &&
+        data.timeZone is string && data.timeZone.size() <= 100 &&
+        data.isPublished is bool &&
+        data.status in ['draft', 'published', 'cancelled', 'completed'] &&
+        (data.eventDateTime == null || data.eventDateTime is timestamp) &&
+        (data.eventLocalDateTime == null ||
+          (data.eventLocalDateTime is string && data.eventLocalDateTime.size() <= 32)) &&
+        (data.meetingPlace == null ||
+          (data.meetingPlace is string && data.meetingPlace.size() <= 150)) &&
+        (data.meetingAddress == null ||
+          (data.meetingAddress is string && data.meetingAddress.size() <= 300)) &&
+        (data.latitude == null ||
+          (data.latitude is number && data.latitude >= -90 && data.latitude <= 90)) &&
+        (data.longitude == null ||
+          (data.longitude is number && data.longitude >= -180 && data.longitude <= 180)) &&
+        (data.additionalInstructions == null ||
+          (data.additionalInstructions is string &&
+            data.additionalInstructions.size() <= 2000)) &&
+        (data.rsvpDeadline == null || data.rsvpDeadline is timestamp) &&
+        (data.rsvpDeadlineLocalDateTime == null ||
+          (data.rsvpDeadlineLocalDateTime is string &&
+            data.rsvpDeadlineLocalDateTime.size() <= 32)) &&
+        (data.isPublished && data.category in ['ride', 'meetup']
+          ? data.eventDateTime is timestamp &&
+            data.eventLocalDateTime is string &&
+            data.meetingPlace is string &&
+            data.meetingPlace.size() > 0
+          : true) &&
+        (data.publishedAt == null || data.publishedAt is timestamp) &&
+        (data.cancellationMessage == null ||
+          (data.cancellationMessage is string &&
+            data.cancellationMessage.size() <= 300)) &&
+        (data.eventDateTime == null || data.rsvpDeadline == null ||
+          data.rsvpDeadline < data.eventDateTime) &&
+        (data.isPublished
+          ? data.publishedAt is timestamp && data.status in ['published', 'cancelled', 'completed']
+          : data.publishedAt == null && data.status == 'draft');
+    }
+
     function isFriend(otherUserId) {
       let first = request.auth.uid < otherUserId ? request.auth.uid : otherUserId;
       let second = request.auth.uid < otherUserId ? otherUserId : request.auth.uid;
@@ -14,6 +72,14 @@ service cloud.firestore {
     function isSquadMember(squadId) {
       return signedIn() && exists(
         /databases/$(database)/documents/squads/$(squadId)/members/$(request.auth.uid)
+      );
+    }
+
+    function isSquadLeader(squadId) {
+      return signedIn() && (
+        get(/databases/$(database)/documents/squads/$(squadId)).data.ownerId == request.auth.uid ||
+        (isSquadMember(squadId) &&
+          get(/databases/$(database)/documents/squads/$(squadId)/members/$(request.auth.uid)).data.role in ['leader', 'coLeader'])
       );
     }
 
@@ -30,9 +96,73 @@ service cloud.firestore {
     }
 
     match /users/{userId} {
-      allow read: if signedIn();
-      allow create, update: if signedIn() && request.auth.uid == userId;
+      allow read: if signedIn() && request.auth.uid == userId;
+      function validUserFields() {
+        return request.resource.data.keys().hasOnly([
+          'uid', 'name', 'email', 'phone', 'photoUrl', 'photoPath',
+          'bikeStatus', 'bikeBrand', 'bikeModel', 'bikeCc',
+          'bikeVehicleType', 'bikeYear', 'bikeRegistration', 'createdAt',
+          'isOnline', 'lastSeen', 'fcmToken', 'announcementNotificationsEnabled',
+          'notificationsEnabled', 'notificationSoundEnabled',
+          'notificationVibrationEnabled', 'customNotificationsEnabled'
+        ]) &&
+        request.resource.data.uid == userId &&
+        request.resource.data.name is string &&
+        request.resource.data.name.size() <= 100 &&
+        request.resource.data.email is string &&
+        request.resource.data.email.size() <= 254 &&
+        request.resource.data.phone is string &&
+        request.resource.data.phone.size() <= 32 &&
+        (!('photoPath' in request.resource.data) ||
+          request.resource.data.photoPath == null ||
+          request.resource.data.photoPath.matches('^profile_photos/' + userId + '/[0-9]+_[0-9]+[.]jpg$')) &&
+        (!('fcmToken' in request.resource.data) ||
+          (request.resource.data.fcmToken is string &&
+            request.resource.data.fcmToken.size() <= 4096)) &&
+        (!('isOnline' in request.resource.data) ||
+          request.resource.data.isOnline is bool) &&
+        (!('announcementNotificationsEnabled' in request.resource.data) ||
+          request.resource.data.announcementNotificationsEnabled is bool) &&
+        (!('notificationsEnabled' in request.resource.data) ||
+          request.resource.data.notificationsEnabled is bool) &&
+        (!('notificationSoundEnabled' in request.resource.data) ||
+          request.resource.data.notificationSoundEnabled is bool) &&
+        (!('notificationVibrationEnabled' in request.resource.data) ||
+          request.resource.data.notificationVibrationEnabled is bool) &&
+        (!('customNotificationsEnabled' in request.resource.data) ||
+          request.resource.data.customNotificationsEnabled is bool);
+      }
+
+      allow create: if signedIn() && request.auth.uid == userId &&
+        validUserFields();
+      allow update: if signedIn() && request.auth.uid == userId &&
+        validUserFields();
       allow delete: if false;
+
+      match /notifications/{notificationId} {
+        allow get, list: if signedIn() && request.auth.uid == userId;
+        allow create: if signedIn() && request.auth.uid == userId &&
+          request.resource.data.recipientUserId == userId &&
+          request.resource.data.notificationId == notificationId &&
+          request.resource.data.type == 'destination_reached' &&
+          request.resource.data.isRead == false &&
+          request.resource.data.createdAt == request.time &&
+          request.resource.data.title == 'Destination reached!' &&
+          request.resource.data.body is string &&
+          request.resource.data.body.size() <= 200 &&
+          request.resource.data.senderUserId == null &&
+          request.resource.data.relatedRideId is string &&
+          request.resource.data.relatedRideId.size() <= 100 &&
+          notificationId == 'destination_' + request.resource.data.relatedRideId &&
+          request.resource.data.keys().hasOnly([
+            'notificationId', 'recipientUserId', 'senderUserId', 'type',
+            'title', 'body', 'createdAt', 'isRead', 'relatedRideId'
+          ]);
+        allow update: if signedIn() && request.auth.uid == userId &&
+          request.resource.data.diff(resource.data).affectedKeys().hasOnly(['isRead']) &&
+          request.resource.data.isRead == true;
+        allow delete: if false;
+      }
 
       match /squads/{squadId} {
         allow read: if signedIn() && request.auth.uid == userId;
@@ -43,6 +173,134 @@ service cloud.firestore {
             get(/databases/$(database)/documents/squads/$(squadId)).data.ownerId == request.auth.uid);
         allow update: if false;
       }
+    }
+
+    match /publicProfiles/{userId} {
+      allow get, list: if signedIn();
+      allow create, update, delete: if false;
+    }
+
+    match /friendPresence/{userId} {
+      allow get: if signedIn() &&
+        (request.auth.uid == userId || isFriend(userId));
+      allow list: if false;
+      allow create, update, delete: if false;
+    }
+
+    match /securityRateLimits/{userId} {
+      allow read, write: if false;
+    }
+
+    match /announcements/{announcementId} {
+      allow get, list: if signedIn() &&
+        (resource.data.isPublished == true ||
+          resource.data.creatorUserId == request.auth.uid);
+      allow create: if signedIn() &&
+        request.resource.data.creatorUserId == request.auth.uid &&
+        request.resource.data.createdAt == request.time &&
+        request.resource.data.updatedAt == request.time &&
+        (request.resource.data.isPublished
+          ? request.resource.data.publishedAt == request.time &&
+            (request.resource.data.category in ['ride', 'meetup']
+              ? request.resource.data.eventDateTime > request.time
+              : true)
+          : request.resource.data.publishedAt == null) &&
+        validAnnouncement(request.resource.data);
+      allow update: if signedIn() &&
+        resource.data.creatorUserId == request.auth.uid &&
+        request.resource.data.creatorUserId == resource.data.creatorUserId &&
+        request.resource.data.createdAt == resource.data.createdAt &&
+        request.resource.data.updatedAt == request.time &&
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          'title', 'description', 'category', 'creatorDisplayName',
+          'updatedAt', 'eventDateTime', 'eventLocalDateTime', 'timeZone',
+          'meetingPlace', 'meetingAddress', 'latitude', 'longitude',
+          'additionalInstructions', 'rsvpDeadline',
+          'rsvpDeadlineLocalDateTime', 'status', 'publishedAt',
+          'isPublished', 'cancellationMessage'
+        ]) &&
+        (resource.data.isPublished
+          ? request.resource.data.publishedAt == resource.data.publishedAt &&
+            request.resource.data.isPublished == true
+          : (request.resource.data.isPublished == false ||
+              (request.resource.data.isPublished == true &&
+                request.resource.data.publishedAt == request.time &&
+                (request.resource.data.category in ['ride', 'meetup']
+                  ? request.resource.data.eventDateTime > request.time
+                  : true)))) &&
+        validAnnouncement(request.resource.data);
+      allow delete: if signedIn() &&
+        resource.data.creatorUserId == request.auth.uid &&
+        resource.data.isPublished == false;
+
+      match /responses/{userId} {
+        function canRespond() {
+          let announcement = get(
+            /databases/$(database)/documents/announcements/$(announcementId)
+          ).data;
+          return signedIn() &&
+            announcement.isPublished == true &&
+            announcement.status == 'published' &&
+            announcement.category in ['ride', 'meetup'] &&
+            (announcement.rsvpDeadline == null ||
+              announcement.rsvpDeadline > request.time);
+        }
+
+        function validResponse() {
+          let profile = get(
+            /databases/$(database)/documents/publicProfiles/$(request.auth.uid)
+          ).data;
+          return request.resource.data.keys().hasOnly([
+              'userId', 'displayName', 'photoPath', 'response',
+              'createdAt', 'updatedAt'
+            ]) &&
+            request.resource.data.userId == request.auth.uid &&
+            request.resource.data.displayName == profile.name &&
+            request.resource.data.photoPath == profile.photoPath &&
+            request.resource.data.response in ['coming', 'not_coming', 'unsure'] &&
+            request.resource.data.createdAt is timestamp &&
+            request.resource.data.updatedAt == request.time;
+        }
+
+        allow get: if signedIn() &&
+          (request.auth.uid == userId ||
+            (signedIn() &&
+              get(/databases/$(database)/documents/announcements/$(announcementId)).data.creatorUserId == request.auth.uid));
+        allow list: if signedIn() &&
+          get(/databases/$(database)/documents/announcements/$(announcementId)).data.creatorUserId == request.auth.uid;
+        allow create: if signedIn() &&
+          request.auth.uid == userId &&
+          canRespond() &&
+          request.resource.data.createdAt == request.time &&
+          validResponse();
+        allow update: if signedIn() &&
+          request.auth.uid == userId &&
+          canRespond() &&
+          request.resource.data.createdAt == resource.data.createdAt &&
+          request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+            'response', 'updatedAt'
+          ]) &&
+          validResponse();
+        allow delete: if false;
+      }
+    }
+
+    match /announcementDeliveries/{deliveryId} {
+      allow read, write: if false;
+    }
+
+    match /users/{userId}/announcementReads/{announcementId} {
+      allow get, list: if signedIn() && request.auth.uid == userId;
+      allow create, update: if signedIn() &&
+        request.auth.uid == userId &&
+        request.resource.data.keys().hasOnly([
+          'announcementId', 'userId', 'viewedAt'
+        ]) &&
+        request.resource.data.announcementId == announcementId &&
+        request.resource.data.userId == userId &&
+        request.resource.data.viewedAt == request.time &&
+        get(/databases/$(database)/documents/announcements/$(announcementId)).data.isPublished == true;
+      allow delete: if false;
     }
 
     match /friendRequests/{requestId} {
@@ -85,16 +343,59 @@ service cloud.firestore {
       allow delete: if false;
     }
 
+    match /squadJoinRequests/{requestId} {
+      allow get, list: if signedIn() &&
+        (resource.data.requesterId == request.auth.uid ||
+          isSquadLeader(resource.data.squadId));
+      allow create: if signedIn() &&
+        request.resource.data.requesterId == request.auth.uid &&
+        request.resource.data.status == 'pending' &&
+        request.resource.data.squadId is string &&
+        request.resource.data.squadName is string &&
+        request.resource.data.squadName.size() <= 100 &&
+        request.resource.data.requesterName is string &&
+        request.resource.data.requesterName.size() <= 100 &&
+        request.resource.data.createdAt == request.time &&
+        request.resource.data.updatedAt == request.time &&
+        requestId == request.resource.data.squadId + '_' + request.auth.uid &&
+        exists(/databases/$(database)/documents/squads/$(request.resource.data.squadId)) &&
+        get(/databases/$(database)/documents/squads/$(request.resource.data.squadId)).data.kind == 'squad' &&
+        request.resource.data.keys().hasOnly([
+          'squadId', 'squadName', 'requesterId', 'requesterName',
+          'status', 'createdAt', 'updatedAt'
+        ]) &&
+        !exists(/databases/$(database)/documents/squads/$(request.resource.data.squadId)/members/$(request.auth.uid));
+      allow update: if signedIn() &&
+        isSquadLeader(resource.data.squadId) &&
+        resource.data.status == 'pending' &&
+        request.resource.data.status in ['approved', 'rejected'] &&
+        request.resource.data.reviewedBy == request.auth.uid &&
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          'status', 'updatedAt', 'reviewedBy'
+        ]);
+      allow delete: if false;
+    }
+
     match /squads/{squadId} {
-      allow read: if signedIn() && isSquadMember(squadId);
-      allow create: if signedIn() && request.resource.data.ownerId == request.auth.uid;
-      allow update: if signedIn() && resource.data.ownerId == request.auth.uid;
+      allow get: if signedIn() && isSquadMember(squadId);
+      allow list: if signedIn();
+      allow create: if signedIn() &&
+        request.resource.data.ownerId == request.auth.uid &&
+        request.resource.data.keys().hasOnly(['name', 'kind', 'ownerId', 'createdAt']) &&
+        request.resource.data.name is string &&
+        request.resource.data.name.size() <= 100 &&
+        request.resource.data.kind in ['solo', 'duo', 'squad'];
+      allow update: if signedIn() && resource.data.ownerId == request.auth.uid &&
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['name', 'kind']) &&
+        request.resource.data.name is string &&
+        request.resource.data.name.size() <= 100 &&
+        request.resource.data.kind in ['solo', 'duo', 'squad'];
       allow delete: if signedIn() && resource.data.ownerId == request.auth.uid;
 
       match /members/{memberId} {
         allow read: if signedIn() && isSquadMember(squadId);
         allow create: if signedIn() &&
-          (getAfter(/databases/$(database)/documents/squads/$(squadId)).data.ownerId == request.auth.uid ||
+          (isSquadLeader(squadId) ||
             (request.auth.uid == memberId &&
               request.resource.data.invitationCode is string &&
               getAfter(/databases/$(database)/documents/squadInvitations/$(request.resource.data.invitationCode)).data.status == 'used' &&

@@ -576,6 +576,15 @@ class _RideTrackingScreenState extends State<MapTabScreen>
     final started = await tracking.startRide(
       rideName: context.read<RideSetup>().rideName,
     );
+    if (started) {
+      tracking.setRideDestination(
+        latitude: destination.latitude,
+        longitude: destination.longitude,
+        name: destLabel,
+      );
+    } else {
+      tracking.clearRideDestination();
+    }
     if (!started && mounted && tracking.errorMessage != null) {
       ScaffoldMessenger.of(context)
           .showSnackBar(SnackBar(content: Text(tracking.errorMessage!)));
@@ -639,6 +648,7 @@ class _RideTrackingScreenState extends State<MapTabScreen>
       _destinationLabel = null;
       _followMode = true;
     });
+    tracking.clearRideDestination();
     final started = await tracking.startRide(
       rideName: context.read<RideSetup>().rideName,
     );

@@ -97,7 +97,7 @@ void main() {
     );
 
     expect(find.text('Theme'), findsOneWidget);
-    expect(find.text('RideWolf theme'), findsNothing);
+    expect(find.text('Bikes theme'), findsNothing);
     expect(find.byType(Switch), findsOneWidget);
 
     final appTheme = tester
@@ -109,11 +109,11 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(appTheme.isDarkMode, isTrue);
-    expect(AppColors.themedBackground, RideWolfColors.black);
-    expect(AppColors.themedSurface, RideWolfColors.charcoal);
-    expect(AppColors.themedText, RideWolfColors.white);
-    expect(AppColors.themedGrey, RideWolfColors.silver);
-    expect(appTheme.themeData.colorScheme.primary, RideWolfColors.racingRed);
+    expect(AppColors.themedBackground, BikesColors.black);
+    expect(AppColors.themedSurface, BikesColors.charcoal);
+    expect(AppColors.themedText, BikesColors.white);
+    expect(AppColors.themedGrey, BikesColors.silver);
+    expect(appTheme.themeData.colorScheme.primary, BikesColors.racingRed);
   });
 
   testWidgets('Group detail screen shows the group call entry point', (

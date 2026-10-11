@@ -7,6 +7,7 @@ class UserModel {
   final String phone;
   final String password;
   final String? photoUrl;
+  final String? photoPath;
   final String bikeStatus;
   final String? bikeBrand;
   final String? bikeModel;
@@ -23,6 +24,7 @@ class UserModel {
     required this.password,
     required this.bikeStatus,
     this.photoUrl,
+    this.photoPath,
     this.bikeBrand,
     this.bikeModel,
     this.bikeCc,
@@ -39,6 +41,7 @@ class UserModel {
       'email': email,
       'phone': phone,
       'photoUrl': photoUrl,
+      'photoPath': photoPath,
       'bikeStatus': bikeStatus,
       'bikeBrand': bikeBrand,
       'bikeModel': bikeModel,
@@ -57,6 +60,7 @@ class UserModel {
       'email': email,
       'phone': phone,
       'photoUrl': photoUrl,
+      'photoPath': photoPath,
       'password': password,
       'bikeStatus': bikeStatus,
       'bikeBrand': bikeBrand,
@@ -75,6 +79,7 @@ class UserModel {
       email: map['email'] ?? '',
       phone: map['phone'] ?? '',
       photoUrl: map['photoUrl'] as String?,
+      photoPath: map['photoPath'] as String?,
       password: map['password'] ?? '',
       bikeStatus: map['bikeStatus'] ?? 'Don\'t have bike',
       bikeBrand: map['bikeBrand'],
@@ -104,6 +109,9 @@ class UserModel {
     String? bikeYear,
     String? bikeRegistration,
     String? photoUrl,
+    String? photoPath,
+    bool clearPhoto = false,
+    bool clearPhotoPath = false,
   }) => UserModel(
     uid: uid,
     name: name ?? this.name,
@@ -117,6 +125,7 @@ class UserModel {
     bikeVehicleType: bikeVehicleType ?? this.bikeVehicleType,
     bikeYear: bikeYear ?? this.bikeYear,
     bikeRegistration: bikeRegistration ?? this.bikeRegistration,
-    photoUrl: photoUrl ?? this.photoUrl,
+    photoUrl: clearPhoto ? null : photoUrl ?? this.photoUrl,
+    photoPath: clearPhotoPath ? null : photoPath ?? this.photoPath,
   );
 }

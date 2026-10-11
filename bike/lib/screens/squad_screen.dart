@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import '../../providers/squad_provider.dart';
+import '../../providers/notification_provider.dart';
 import '../../models/rider_model.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/squad_widgets.dart';
@@ -73,7 +76,10 @@ class _SquadScreenState extends State<SquadScreen>
         ),
         title: const Text(
           'Delete Group',
-          style: TextStyle(color: AppColors.orange, fontWeight: FontWeight.w700),
+          style: TextStyle(
+            color: AppColors.orange,
+            fontWeight: FontWeight.w700,
+          ),
         ),
         content: Text(
           'Are you sure you want to delete "$groupName"? This action cannot be undone.',
@@ -111,6 +117,142 @@ class _SquadScreenState extends State<SquadScreen>
     );
   }
 
+  void _browseSquads(BuildContext context) {
+    showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: AppColors.themedSurface,
+      builder: (sheetContext) => SafeArea(
+        child: SizedBox(
+          height: MediaQuery.sizeOf(sheetContext).height * 0.75,
+          child: Column(
+            children: [
+              Padding(
+                padding: const EdgeInsets.all(16),
+                child: Row(
+                  children: [
+                    const Expanded(
+                      child: Text(
+                        'Discover squads',
+                        style: TextStyle(
+                          color: AppColors.orange,
+                          fontWeight: FontWeight.w800,
+                          fontSize: 18,
+                        ),
+                      ),
+                    ),
+                    IconButton(
+                      tooltip: 'Close',
+                      onPressed: () => Navigator.pop(sheetContext),
+                      icon: const Icon(Icons.close),
+                    ),
+                  ],
+                ),
+              ),
+              Expanded(
+                child: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+                  stream: FirebaseFirestore.instance
+                      .collection('squads')
+                      .orderBy('name')
+                      .limit(50)
+                      .snapshots(),
+                  builder: (context, snapshot) {
+                    if (snapshot.hasError) {
+                      return const Center(
+                        child: Text('Unable to load squads right now.'),
+                      );
+                    }
+                    if (!snapshot.hasData) {
+                      return const Center(
+                        child: CircularProgressIndicator(
+                          color: AppColors.orange,
+                        ),
+                      );
+                    }
+                    final userId = FirebaseAuth.instance.currentUser?.uid;
+                    final squads = snapshot.data!.docs
+                        .where(
+                          (document) =>
+                              document.data()['ownerId'] != userId &&
+                              document.data()['kind'] == 'squad',
+                        )
+                        .toList();
+                    if (squads.isEmpty) {
+                      return Center(
+                        child: Text(
+                          'No other squads are available yet.',
+                          style: TextStyle(color: AppColors.themedGrey),
+                        ),
+                      );
+                    }
+                    return ListView.separated(
+                      padding: const EdgeInsets.fromLTRB(16, 0, 16, 20),
+                      itemCount: squads.length,
+                      separatorBuilder: (_, _) => const SizedBox(height: 8),
+                      itemBuilder: (context, index) {
+                        final document = squads[index];
+                        final data = document.data();
+                        final name = data['name'] as String? ?? 'Squad';
+                        return ListTile(
+                          tileColor: AppColors.themedCard,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          leading: const CircleAvatar(
+                            backgroundColor: AppColors.orangeGlow,
+                            child: Icon(
+                              Icons.groups_outlined,
+                              color: AppColors.orange,
+                            ),
+                          ),
+                          title: Text(name),
+                          subtitle: Text(
+                            data['kind'] as String? ?? 'squad',
+                            style: TextStyle(color: AppColors.themedGrey),
+                          ),
+                          trailing: TextButton(
+                            onPressed: () async {
+                              try {
+                                await context
+                                    .read<NotificationProvider>()
+                                    .requestToJoinSquad(
+                                      squadId: document.id,
+                                      squadName: name,
+                                    );
+                                if (sheetContext.mounted) {
+                                  ScaffoldMessenger.of(
+                                    sheetContext,
+                                  ).showSnackBar(
+                                    const SnackBar(
+                                      content: Text('Join request sent.'),
+                                    ),
+                                  );
+                                }
+                              } catch (error) {
+                                if (sheetContext.mounted) {
+                                  ScaffoldMessenger.of(
+                                    sheetContext,
+                                  ).showSnackBar(
+                                    SnackBar(content: Text('$error')),
+                                  );
+                                }
+                              }
+                            },
+                            child: const Text('Request to join'),
+                          ),
+                        );
+                      },
+                    );
+                  },
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -141,6 +283,11 @@ class _SquadScreenState extends State<SquadScreen>
             icon: const Icon(Icons.group_add_outlined),
             tooltip: 'Join Squad',
             onPressed: () => showJoinSquadDialog(context),
+          ),
+          IconButton(
+            icon: const Icon(Icons.search),
+            tooltip: 'Discover squads',
+            onPressed: () => _browseSquads(context),
           ),
           const SizedBox(width: 8),
         ],

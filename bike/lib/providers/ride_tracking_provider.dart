@@ -7,9 +7,14 @@ import 'package:latlong2/latlong.dart';
 
 import '../models/tracked_ride.dart';
 import '../services/ride_storage.dart';
+import '../utils/ride_destination_detector.dart';
 
 class RideTrackingProvider extends ChangeNotifier {
   final RideStorage _storage;
+  final RideDestinationDetector _destinationDetector =
+      RideDestinationDetector();
+  final StreamController<Map<String, String?>> _destinationReachedController =
+      StreamController<Map<String, String?>>.broadcast();
   StreamSubscription<Position>? _positionSubscription;
   StreamSubscription<CompassEvent>? _compassSubscription;
   Timer? _durationTimer;
@@ -29,6 +34,8 @@ class RideTrackingProvider extends ChangeNotifier {
   String? _errorMessage;
   bool _isLoadingHistory = true;
   bool _isTracking = false;
+  String? _activeRideId;
+  String? _destinationName;
 
   RideTrackingProvider({RideStorage? storage})
     : _storage = storage ?? RideStorage() {
@@ -55,6 +62,8 @@ class RideTrackingProvider extends ChangeNotifier {
           ? Duration.zero
           : DateTime.now().difference(_stopStartedAt!));
   int get stopCount => _stopCount;
+  Stream<Map<String, String?>> get destinationReachedEvents =>
+      _destinationReachedController.stream;
   LatLng? get currentLatLng => _currentPosition == null
       ? null
       : LatLng(_currentPosition!.latitude, _currentPosition!.longitude);
@@ -150,7 +159,10 @@ class RideTrackingProvider extends ChangeNotifier {
     _stopStartedAt = null;
     _stopCount = 0;
     _startTime = DateTime.now();
+    _activeRideId = _startTime!.microsecondsSinceEpoch.toString();
     _rideName = rideName?.trim();
+    _destinationDetector.beginRide();
+    _destinationName = null;
     _selectedRide = null;
     _isTracking = true;
 
@@ -210,6 +222,7 @@ class RideTrackingProvider extends ChangeNotifier {
     }
     _routePoints.add(point);
     _currentPosition = position;
+    _checkDestination(position);
     _maximumSpeed = position.speed > _maximumSpeed
         ? position.speed
         : _maximumSpeed;
@@ -223,6 +236,41 @@ class RideTrackingProvider extends ChangeNotifier {
       _stopStartedAt = null;
     }
     notifyListeners();
+  }
+
+  void setRideDestination({
+    required double latitude,
+    required double longitude,
+    required String? name,
+  }) {
+    if (!_isTracking) return;
+    _destinationDetector.setDestination(latitude, longitude);
+    _destinationName = name?.trim();
+  }
+
+  void clearRideDestination() {
+    _destinationDetector.clearDestination();
+    _destinationName = null;
+  }
+
+  void _checkDestination(Position position) {
+    if (!_isTracking) return;
+    final reached = _destinationDetector.recordFix(
+      latitude: position.latitude,
+      longitude: position.longitude,
+      accuracyMeters: position.accuracy,
+      speedMetersPerSecond: position.speed,
+      timestamp: position.timestamp,
+      now: DateTime.now(),
+    );
+    if (!reached) return;
+    final rideId = _activeRideId;
+    if (rideId != null) {
+      _destinationReachedController.add({
+        'rideId': rideId,
+        'destinationName': _destinationName,
+      });
+    }
   }
 
   Future<TrackedRide?> stopRide() async {
@@ -263,6 +311,8 @@ class RideTrackingProvider extends ChangeNotifier {
     _completedRides.insert(0, ride);
     _isTracking = false;
     _startTime = null;
+    _activeRideId = null;
+    clearRideDestination();
     _rideName = null;
     _selectedRide = ride;
     notifyListeners();
@@ -307,6 +357,7 @@ class RideTrackingProvider extends ChangeNotifier {
     _positionSubscription?.cancel();
     _compassSubscription?.cancel();
     _durationTimer?.cancel();
+    _destinationReachedController.close();
     super.dispose();
   }
 }

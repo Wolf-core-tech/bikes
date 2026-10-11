@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-class RideWolfColors {
+class BikesColors {
   static const Color black = Color(0xFF050505);
   static const Color racingRed = Color.fromARGB(255, 188, 0, 16);
   static const Color darkRed = Color.fromARGB(255, 188, 0, 16);
@@ -40,15 +40,15 @@ class AppColors {
   }
 
   static Color get themedBackground =>
-      _useDarkMode ? RideWolfColors.black : backgroundLight;
+      _useDarkMode ? BikesColors.black : backgroundLight;
   static Color get themedSurface =>
-      _useDarkMode ? RideWolfColors.charcoal : surfaceLight;
+      _useDarkMode ? BikesColors.charcoal : surfaceLight;
   static Color get themedCard =>
-      _useDarkMode ? RideWolfColors.charcoal : cardLight;
-  static Color get themedText => _useDarkMode ? RideWolfColors.white : black;
-  static Color get themedGrey => _useDarkMode ? RideWolfColors.silver : grey;
+      _useDarkMode ? BikesColors.charcoal : cardLight;
+  static Color get themedText => _useDarkMode ? BikesColors.white : black;
+  static Color get themedGrey => _useDarkMode ? BikesColors.silver : grey;
   static Color get themedGreyBorder =>
-      _useDarkMode ? RideWolfColors.silver : greyDark;
+      _useDarkMode ? BikesColors.silver : greyDark;
 }
 
 class AppTheme extends ChangeNotifier {
@@ -130,53 +130,53 @@ class AppTheme extends ChangeNotifier {
 
   static final ThemeData _darkTheme = ThemeData(
     brightness: Brightness.dark,
-    scaffoldBackgroundColor: RideWolfColors.black,
-    primaryColor: RideWolfColors.racingRed,
+    scaffoldBackgroundColor: BikesColors.black,
+    primaryColor: BikesColors.racingRed,
     colorScheme: const ColorScheme.dark(
-      primary: RideWolfColors.racingRed,
-      secondary: RideWolfColors.darkRed,
-      surface: RideWolfColors.charcoal,
+      primary: BikesColors.racingRed,
+      secondary: BikesColors.darkRed,
+      surface: BikesColors.charcoal,
       error: AppColors.orange,
     ),
     fontFamily: 'Roboto',
     appBarTheme: const AppBarTheme(
-      backgroundColor: RideWolfColors.black,
+      backgroundColor: BikesColors.black,
       elevation: 0,
       titleTextStyle: TextStyle(
-        color: RideWolfColors.white,
+        color: BikesColors.white,
         fontSize: 22,
         fontWeight: FontWeight.w700,
         letterSpacing: 0.5,
       ),
-      iconTheme: IconThemeData(color: RideWolfColors.racingRed),
+      iconTheme: IconThemeData(color: BikesColors.racingRed),
     ),
     textTheme: const TextTheme(
       headlineLarge: TextStyle(
-        color: RideWolfColors.white,
+        color: BikesColors.white,
         fontWeight: FontWeight.w700,
       ),
       headlineMedium: TextStyle(
-        color: RideWolfColors.white,
+        color: BikesColors.white,
         fontWeight: FontWeight.w600,
       ),
       titleLarge: TextStyle(
-        color: RideWolfColors.white,
+        color: BikesColors.white,
         fontWeight: FontWeight.w600,
       ),
-      titleMedium: TextStyle(color: RideWolfColors.white),
-      bodyLarge: TextStyle(color: RideWolfColors.white),
-      bodyMedium: TextStyle(color: RideWolfColors.silver),
+      titleMedium: TextStyle(color: BikesColors.white),
+      bodyLarge: TextStyle(color: BikesColors.white),
+      bodyMedium: TextStyle(color: BikesColors.silver),
       labelLarge: TextStyle(
-        color: RideWolfColors.racingRed,
+        color: BikesColors.racingRed,
         fontWeight: FontWeight.w600,
         letterSpacing: 1,
       ),
     ),
-    dividerColor: RideWolfColors.silver,
-    iconTheme: IconThemeData(color: RideWolfColors.racingRed),
+    dividerColor: BikesColors.silver,
+    iconTheme: IconThemeData(color: BikesColors.racingRed),
     switchTheme: SwitchThemeData(
-      thumbColor: WidgetStatePropertyAll(RideWolfColors.racingRed),
-      trackColor: WidgetStatePropertyAll(RideWolfColors.darkRed),
+      thumbColor: WidgetStatePropertyAll(BikesColors.racingRed),
+      trackColor: WidgetStatePropertyAll(BikesColors.darkRed),
     ),
   );
 }

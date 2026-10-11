@@ -27,5 +27,16 @@ void main() {
 
     expect(find.text('Change photo'), findsOneWidget);
     expect(find.byType(ProfilePhoto), findsNWidgets(2));
+
+    await tester.tap(find.text('Change photo'));
+    await tester.pumpAndSettle();
+    expect(find.text('Take photo'), findsOneWidget);
+    expect(find.text('Choose from gallery'), findsOneWidget);
+    expect(find.text('Remove photo'), findsOneWidget);
+    expect(find.text('Cancel'), findsNWidgets(2));
+
+    await tester.tap(find.text('Cancel').last);
+    await tester.pumpAndSettle();
+    expect(find.text('Choose from gallery'), findsNothing);
   });
 }

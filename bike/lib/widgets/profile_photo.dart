@@ -1,121 +1,119 @@
+import 'dart:typed_data';
+
+import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/material.dart';
 
 import '../theme/app_theme.dart';
 
-class ProfilePhoto extends StatelessWidget {
+class ProfilePhoto extends StatefulWidget {
   const ProfilePhoto({
     super.key,
     required this.photoUrl,
+    this.photoPath,
     this.size = 100,
   });
 
   final String? photoUrl;
+  final String? photoPath;
   final double size;
 
   @override
+  State<ProfilePhoto> createState() => _ProfilePhotoState();
+}
+
+class _ProfilePhotoState extends State<ProfilePhoto> {
+  Future<Uint8List?>? _photoBytes;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadPath(widget.photoPath);
+  }
+
+  @override
+  void didUpdateWidget(covariant ProfilePhoto oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.photoPath != widget.photoPath) {
+      _loadPath(widget.photoPath);
+    }
+  }
+
+  void _loadPath(String? path) {
+    final normalizedPath = path?.trim();
+    _photoBytes = normalizedPath == null || normalizedPath.isEmpty
+        ? null
+        : FirebaseStorage.instance
+              .ref()
+              .child(normalizedPath)
+              .getData(5 * 1024 * 1024);
+  }
+
+  @override
   Widget build(BuildContext context) {
-    final url = photoUrl?.trim();
+    final url = widget.photoUrl?.trim();
+    final path = widget.photoPath?.trim();
     return Semantics(
-      label: url?.isNotEmpty == true ? 'Profile photo' : 'Default profile photo',
+      label: url?.isNotEmpty == true || path?.isNotEmpty == true
+          ? 'Profile photo'
+          : 'Default profile photo',
       child: Container(
-        width: size,
-        height: size,
-        padding: EdgeInsets.all(size * 0.03),
+        width: widget.size,
+        height: widget.size,
+        padding: EdgeInsets.all(widget.size * 0.03),
         decoration: const BoxDecoration(
           shape: BoxShape.circle,
           color: AppColors.orange,
         ),
         child: ClipOval(
-          child: url?.isNotEmpty == true
+          child: path?.isNotEmpty == true
+              ? FutureBuilder<Uint8List?>(
+                  future: _photoBytes,
+                  builder: (context, snapshot) {
+                    if (snapshot.hasError) {
+                      debugPrint(
+                        'Unable to load profile photo from Storage: ${snapshot.error}',
+                      );
+                      return _placeholder(context);
+                    }
+                    final bytes = snapshot.data;
+                    return bytes == null
+                        ? _placeholder(context)
+                        : Image.memory(
+                            bytes,
+                            fit: BoxFit.cover,
+                            cacheWidth:
+                                (widget.size *
+                                        MediaQuery.devicePixelRatioOf(context))
+                                    .round(),
+                            errorBuilder: (context, _, _) =>
+                                _placeholder(context),
+                          );
+                  },
+                )
+              : url?.isNotEmpty == true
               ? Image.network(
                   url!,
                   fit: BoxFit.cover,
-                  errorBuilder: (_, _, _) => _placeholder(),
+                  cacheWidth:
+                      (widget.size * MediaQuery.devicePixelRatioOf(context))
+                          .round(),
+                  errorBuilder: (context, _, _) => _placeholder(context),
                 )
-              : _placeholder(),
+              : _placeholder(context),
         ),
       ),
     );
   }
 
-  Widget _placeholder() {
-    final innerSize = size * 0.94;
-    return SizedBox(
-      width: innerSize,
-      height: innerSize,
-      child: LayoutBuilder(
-        builder: (context, constraints) {
-          final extent = constraints.biggest.shortestSide;
-          return ClipOval(
-            child: Stack(
-              alignment: Alignment.topCenter,
-              children: [
-                const Positioned.fill(
-                  child: DecoratedBox(
-                    decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        begin: Alignment.topCenter,
-                        end: Alignment.bottomCenter,
-                        colors: [Color(0xFFDCE6EF), Color(0xFFB7C8D8)],
-                      ),
-                    ),
-                  ),
-                ),
-                Positioned(
-                  top: extent * 0.08,
-                  child: Container(
-                    width: extent * 0.5,
-                    height: extent * 0.55,
-                    decoration: const BoxDecoration(
-                      color: Color(0xFF3B2B26),
-                      shape: BoxShape.circle,
-                    ),
-                  ),
-                ),
-                Positioned(
-                  top: extent * 0.2,
-                  child: Container(
-                    width: extent * 0.36,
-                    height: extent * 0.43,
-                    decoration: BoxDecoration(
-                      color: const Color(0xFFE9B99A),
-                      borderRadius: BorderRadius.all(
-                        Radius.circular(extent * 0.2),
-                      ),
-                    ),
-                  ),
-                ),
-                Positioned(
-                  top: extent * 0.16,
-                  child: Container(
-                    width: extent * 0.4,
-                    height: extent * 0.18,
-                    decoration: BoxDecoration(
-                      color: const Color(0xFF3B2B26),
-                      borderRadius: BorderRadius.vertical(
-                        top: Radius.circular(extent * 0.2),
-                        bottom: Radius.circular(extent * 0.08),
-                      ),
-                    ),
-                  ),
-                ),
-                Positioned(
-                  bottom: -extent * 0.2,
-                  child: Container(
-                    width: extent * 0.84,
-                    height: extent * 0.58,
-                    decoration: BoxDecoration(
-                      color: const Color(0xFF394B5D),
-                      borderRadius: BorderRadius.vertical(
-                        top: Radius.circular(extent * 0.42),
-                      ),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          );
-        },
+  Widget _placeholder(BuildContext context) {
+    return ColoredBox(
+      color: AppColors.themedSurface,
+      child: Center(
+        child: Icon(
+          Icons.person_rounded,
+          size: widget.size * 0.58,
+          color: AppColors.themedGrey,
+        ),
       ),
     );
   }

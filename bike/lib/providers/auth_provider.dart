@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'dart:async';
+import 'dart:math';
 import 'package:flutter/foundation.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -7,6 +8,7 @@ import 'package:firebase_storage/firebase_storage.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../models/user_model.dart';
 import '../services/notification_service.dart';
+import '../utils/profile_photo_validation.dart';
 
 /// AUTH FLOW:
 /// ─────────────────────────────────────────────────────────────
@@ -26,6 +28,7 @@ class AuthProvider extends ChangeNotifier {
   bool _isInitialized = false;
   UserModel? _currentUser;
   List<UserModel> _registeredUsers = [];
+  bool _profilePhotoOperationInProgress = false;
 
   FirebaseAuth get _auth => FirebaseAuth.instance;
   FirebaseFirestore get _firestore => FirebaseFirestore.instance;
@@ -74,8 +77,9 @@ class AuthProvider extends ChangeNotifier {
       if (savedUid != null && savedUid.isNotEmpty) {
         final rawUsers = prefs.getString(_registeredUsersKey);
         if (rawUsers != null) {
-          final records = (json.decode(rawUsers) as List<dynamic>)
-              .map((r) => UserModel.fromMap(Map<String, dynamic>.from(r)));
+          final records = (json.decode(rawUsers) as List<dynamic>).map(
+            (r) => UserModel.fromMap(Map<String, dynamic>.from(r)),
+          );
           for (final user in records) {
             if (user.uid == savedUid) {
               _currentUser = user;
@@ -118,7 +122,10 @@ class AuthProvider extends ChangeNotifier {
         phone: data['phone'] as String? ?? '',
         password: '',
         bikeStatus: data['bikeStatus'] as String? ?? "Don't have bike",
-        photoUrl: data['photoUrl'] as String? ?? firebaseUser.photoURL,
+        photoUrl: data.containsKey('photoUrl')
+            ? data['photoUrl'] as String?
+            : firebaseUser.photoURL,
+        photoPath: data['photoPath'] as String?,
         bikeBrand: data['bikeBrand'] as String?,
         bikeModel: data['bikeModel'] as String?,
         bikeCc: data['bikeCc'] as String?,
@@ -126,7 +133,7 @@ class AuthProvider extends ChangeNotifier {
         bikeYear: data['bikeYear'] as String?,
         bikeRegistration: data['bikeRegistration'] as String?,
       );
-      
+
       if (!doc.exists) {
         await _firestore.collection('users').doc(firebaseUser.uid).set({
           ...profile.toFirestoreMap(),
@@ -137,7 +144,8 @@ class AuthProvider extends ChangeNotifier {
       _registeredUsers = await _loadFirestoreUsers();
     } catch (_) {
       // Firestore failed — restore from local cache
-      profile = await _getCachedUser(firebaseUser.uid) ??
+      profile =
+          await _getCachedUser(firebaseUser.uid) ??
           UserModel(
             uid: firebaseUser.uid,
             name: firebaseUser.displayName ?? 'Rider',
@@ -168,20 +176,25 @@ class AuthProvider extends ChangeNotifier {
         email: firebaseUser.email ?? _currentUser?.email ?? '',
         phone: data['phone'] as String? ?? _currentUser?.phone ?? '',
         password: _currentUser?.password ?? '',
-        bikeStatus: data['bikeStatus'] as String? ??
+        bikeStatus:
+            data['bikeStatus'] as String? ??
             _currentUser?.bikeStatus ??
             "Don't have bike",
         bikeBrand: data['bikeBrand'] as String? ?? _currentUser?.bikeBrand,
         bikeModel: data['bikeModel'] as String? ?? _currentUser?.bikeModel,
         bikeCc: data['bikeCc'] as String? ?? _currentUser?.bikeCc,
-        bikeVehicleType: data['bikeVehicleType'] as String? ??
-            _currentUser?.bikeVehicleType,
+        bikeVehicleType:
+            data['bikeVehicleType'] as String? ?? _currentUser?.bikeVehicleType,
         bikeYear: data['bikeYear'] as String? ?? _currentUser?.bikeYear,
-        bikeRegistration: data['bikeRegistration'] as String? ??
+        bikeRegistration:
+            data['bikeRegistration'] as String? ??
             _currentUser?.bikeRegistration,
-        photoUrl: data['photoUrl'] as String? ??
-            firebaseUser.photoURL ??
-            _currentUser?.photoUrl,
+        photoUrl: data.containsKey('photoUrl')
+            ? data['photoUrl'] as String?
+            : firebaseUser.photoURL ?? _currentUser?.photoUrl,
+        photoPath: data.containsKey('photoPath')
+            ? data['photoPath'] as String?
+            : _currentUser?.photoPath,
       );
       _currentUser = updated;
       await _saveCachedUser(updated);
@@ -262,7 +275,7 @@ class AuthProvider extends ChangeNotifier {
         email: email.trim(),
         password: password,
       );
-      
+
       // Check if email is verified
       if (credential.user != null && !credential.user!.emailVerified) {
         await _auth.signOut();
@@ -281,8 +294,7 @@ class AuthProvider extends ChangeNotifier {
       return switch (e.code) {
         'user-not-found' => 'No account found. Please register first.',
         'wrong-password' ||
-        'invalid-credential' =>
-          'Incorrect email or password.',
+        'invalid-credential' => 'Incorrect email or password.',
         'invalid-email' => 'Please enter a valid email address.',
         'too-many-requests' => 'Too many attempts. Try again later.',
         _ => e.message ?? 'Unable to sign in right now.',
@@ -299,8 +311,9 @@ class AuthProvider extends ChangeNotifier {
       final prefs = await SharedPreferences.getInstance();
       final rawUsers = prefs.getString(_registeredUsersKey);
       if (rawUsers == null) return 'No local account found.';
-      final records = (json.decode(rawUsers) as List<dynamic>)
-          .map((r) => UserModel.fromMap(Map<String, dynamic>.from(r)));
+      final records = (json.decode(rawUsers) as List<dynamic>).map(
+        (r) => UserModel.fromMap(Map<String, dynamic>.from(r)),
+      );
       for (final user in records) {
         if (user.email.trim().toLowerCase() == email.trim().toLowerCase() &&
             user.password == password) {
@@ -347,7 +360,9 @@ class AuthProvider extends ChangeNotifier {
 
   Future<void> updateCurrentUser(UserModel updatedUser) async {
     final firebaseUser = _auth.currentUser;
-    if (firebaseUser == null) throw StateError('Sign in to update your profile.');
+    if (firebaseUser == null) {
+      throw StateError('Sign in to update your profile.');
+    }
     final profile = UserModel(
       uid: firebaseUser.uid,
       name: updatedUser.name,
@@ -361,7 +376,12 @@ class AuthProvider extends ChangeNotifier {
       bikeVehicleType: updatedUser.bikeVehicleType,
       bikeYear: updatedUser.bikeYear,
       bikeRegistration: updatedUser.bikeRegistration,
-      photoUrl: _currentUser?.photoUrl ?? updatedUser.photoUrl,
+      photoUrl: _currentUser == null
+          ? updatedUser.photoUrl
+          : _currentUser!.photoUrl,
+      photoPath: _currentUser == null
+          ? updatedUser.photoPath
+          : _currentUser!.photoPath,
     );
     await firebaseUser.updateDisplayName(profile.name);
     try {
@@ -384,25 +404,158 @@ class AuthProvider extends ChangeNotifier {
     if (firebaseUser == null || currentProfile == null) {
       throw StateError('Sign in to upload a profile photo.');
     }
-
-    final photoRef = FirebaseStorage.instance
-        .ref()
-        .child('profile_photos/${firebaseUser.uid}/profile');
-    final snapshot = await photoRef.putData(
+    if (_profilePhotoOperationInProgress) {
+      throw StateError('A profile photo operation is already in progress.');
+    }
+    final detectedType = ProfilePhotoValidation.validateAndGetContentType(
       imageBytes,
-      SettableMetadata(contentType: contentType),
+      maxBytes: ProfilePhotoValidation.maxUploadBytes,
     );
-    final photoUrl = await snapshot.ref.getDownloadURL();
-    await firebaseUser.updatePhotoURL(photoUrl);
-    await _firestore.collection('users').doc(firebaseUser.uid).set({
-      'photoUrl': photoUrl,
-    }, SetOptions(merge: true));
+    if (detectedType != contentType || contentType != 'image/jpeg') {
+      throw const FormatException(
+        'Profile photos must be cropped to JPEG before uploading.',
+      );
+    }
 
-    final updatedProfile = currentProfile.copyWith(photoUrl: photoUrl);
-    _currentUser = updatedProfile;
-    await _saveCachedUser(updatedProfile);
-    notifyListeners();
-    return photoUrl;
+    _profilePhotoOperationInProgress = true;
+    final storage = FirebaseStorage.instance;
+    final oldPhotoPath = _photoStoragePath(currentProfile, firebaseUser.uid);
+    final newPhotoPath =
+        'profile_photos/${firebaseUser.uid}/${DateTime.now().microsecondsSinceEpoch}_${Random.secure().nextInt(1 << 32)}.jpg';
+    final newPhotoRef = storage.ref().child(newPhotoPath);
+    var authPhotoUpdated = false;
+
+    try {
+      await newPhotoRef.putData(
+        imageBytes,
+        SettableMetadata(
+          contentType: contentType,
+          cacheControl: 'private,max-age=3600',
+        ),
+      );
+      await firebaseUser.updatePhotoURL(null);
+      authPhotoUpdated = true;
+      try {
+        await _firestore.collection('users').doc(firebaseUser.uid).set({
+          'photoUrl': null,
+          'photoPath': newPhotoPath,
+        }, SetOptions(merge: true));
+      } catch (_) {
+        await _restoreAuthPhoto(firebaseUser, currentProfile.photoUrl);
+        authPhotoUpdated = false;
+        rethrow;
+      }
+
+      final updatedProfile = currentProfile.copyWith(
+        clearPhoto: true,
+        photoPath: newPhotoPath,
+      );
+      _currentUser = updatedProfile;
+      notifyListeners();
+      try {
+        await _saveCachedUser(updatedProfile);
+      } catch (error) {
+        debugPrint('Unable to cache the updated profile photo: $error');
+      }
+      await _deletePreviousPhoto(oldPhotoPath, firebaseUser.uid);
+      return newPhotoPath;
+    } catch (_) {
+      if (authPhotoUpdated) {
+        await _restoreAuthPhoto(firebaseUser, currentProfile.photoUrl);
+      }
+      await _deletePhotoFile(newPhotoPath, firebaseUser.uid);
+      rethrow;
+    } finally {
+      _profilePhotoOperationInProgress = false;
+    }
+  }
+
+  Future<void> removeProfilePhoto() async {
+    final firebaseUser = _auth.currentUser;
+    final currentProfile = _currentUser;
+    if (firebaseUser == null || currentProfile == null) {
+      throw StateError('Sign in to remove your profile photo.');
+    }
+    if (_profilePhotoOperationInProgress) {
+      throw StateError('A profile photo operation is already in progress.');
+    }
+
+    _profilePhotoOperationInProgress = true;
+    final oldPhotoPath = _photoStoragePath(currentProfile, firebaseUser.uid);
+    var authPhotoUpdated = false;
+    try {
+      await firebaseUser.updatePhotoURL(null);
+      authPhotoUpdated = true;
+      try {
+        await _firestore.collection('users').doc(firebaseUser.uid).set({
+          'photoUrl': null,
+          'photoPath': null,
+        }, SetOptions(merge: true));
+      } catch (_) {
+        await _restoreAuthPhoto(firebaseUser, currentProfile.photoUrl);
+        authPhotoUpdated = false;
+        rethrow;
+      }
+
+      final updatedProfile = currentProfile.copyWith(
+        clearPhoto: true,
+        clearPhotoPath: true,
+      );
+      _currentUser = updatedProfile;
+      notifyListeners();
+      try {
+        await _saveCachedUser(updatedProfile);
+      } catch (error) {
+        debugPrint('Unable to cache the removed profile photo: $error');
+      }
+      await _deletePreviousPhoto(oldPhotoPath, firebaseUser.uid);
+    } catch (_) {
+      if (authPhotoUpdated) {
+        await _restoreAuthPhoto(firebaseUser, currentProfile.photoUrl);
+      }
+      rethrow;
+    } finally {
+      _profilePhotoOperationInProgress = false;
+    }
+  }
+
+  String? _photoStoragePath(UserModel profile, String userId) {
+    if (profile.photoPath != null) return profile.photoPath;
+    if (profile.photoUrl?.contains('profile_photos%2F$userId%2Fprofile') ==
+        true) {
+      return 'profile_photos/$userId/profile';
+    }
+    return null;
+  }
+
+  Future<void> _restoreAuthPhoto(User firebaseUser, String? photoUrl) async {
+    try {
+      await firebaseUser.updatePhotoURL(photoUrl);
+    } catch (error) {
+      debugPrint('Unable to restore the previous auth profile photo: $error');
+    }
+  }
+
+  Future<void> _deletePreviousPhoto(String? path, String userId) async {
+    if (path == null) return;
+    await _deletePhotoFile(path, userId);
+  }
+
+  Future<void> _deletePhotoFile(String path, String userId) async {
+    final prefix = 'profile_photos/$userId/';
+    if (!path.startsWith(prefix)) {
+      debugPrint('Skipped deleting an invalid profile photo path: $path');
+      return;
+    }
+    try {
+      await FirebaseStorage.instance.ref().child(path).delete();
+    } on FirebaseException catch (error) {
+      if (error.code != 'object-not-found') {
+        debugPrint('Unable to delete old profile photo $path: $error');
+      }
+    } catch (error) {
+      debugPrint('Unable to delete old profile photo $path: $error');
+    }
   }
 
   // ─── LOGOUT — the ONLY way the user is signed out ─────────────────────────
@@ -440,8 +593,9 @@ class AuthProvider extends ChangeNotifier {
       final prefs = await SharedPreferences.getInstance();
       final rawUsers = prefs.getString(_registeredUsersKey);
       if (rawUsers == null) return null;
-      final records = (json.decode(rawUsers) as List<dynamic>)
-          .map((r) => UserModel.fromMap(Map<String, dynamic>.from(r)));
+      final records = (json.decode(rawUsers) as List<dynamic>).map(
+        (r) => UserModel.fromMap(Map<String, dynamic>.from(r)),
+      );
       for (final user in records) {
         if (user.uid == uid) return user;
       }
@@ -451,13 +605,21 @@ class AuthProvider extends ChangeNotifier {
 
   Future<List<UserModel>> _loadFirestoreUsers() async {
     try {
-      final snapshot = await _firestore.collection('users').get();
+      final snapshot = await _firestore.collection('publicProfiles').get();
       return snapshot.docs.map((doc) {
         final data = doc.data();
-        return UserModel.fromMap({...data, 'uid': doc.id, 'password': ''});
+        return UserModel.fromMap({
+          'uid': doc.id,
+          'name': data['name'] as String? ?? 'Rider',
+          'photoPath': data['photoPath'] as String?,
+          'photoUrl': data['photoUrl'] as String?,
+          'email': '',
+          'phone': '',
+          'password': '',
+        });
       }).toList();
     } catch (_) {
-      return List<UserModel>.from(_registeredUsers);
+      return [];
     }
   }
 

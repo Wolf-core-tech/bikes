@@ -83,7 +83,9 @@ class _AddRiderDialogState extends State<_AddRiderDialog> {
                   child: Text(_initials(_result!.name)),
                 ),
                 title: Text(_result!.name),
-                subtitle: Text(_result!.email),
+                subtitle: Text(
+                  _result!.email.isNotEmpty ? _result!.email : 'Bike Squad rider',
+                ),
               ),
               SizedBox(
                 width: double.infinity,

@@ -30,6 +30,11 @@ dependencies:
   path_provider: ^2.1.6
   image_picker: ^1.2.4
   firebase_storage: ^13.6.0
+  image_cropper: ^12.2.1
+  image: ^4.12.0
+  cloud_functions: ^6.5.0
+  flutter_timezone: ^5.1.1
+  timezone: ^0.11.1
 dev_dependencies:
   flutter_test:
     sdk: flutter
