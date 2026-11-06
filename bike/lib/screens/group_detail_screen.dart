@@ -10,6 +10,7 @@ import '../../providers/squad_provider.dart';
 import '../../models/rider_model.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/squad_widgets.dart';
+import '../widgets/profile_health_details_dialog.dart';
 
 class GroupDetailScreen extends StatefulWidget {
   final String groupId;
@@ -809,27 +810,28 @@ class _MembersTab extends StatelessWidget {
                 ),
               const SizedBox(height: 8),
               OutlinedButton.icon(
-                onPressed: () {
+                onPressed: () async {
                   Navigator.pop(sheetContext);
-                  showDialog<void>(
-                    context: context,
-                    builder: (dialogContext) => AlertDialog(
-                      backgroundColor: AppColors.themedSurface,
-                      title: Text(rider.name),
-                      content: Text(
-                        profile?.email.isNotEmpty == true
-                            ? profile!.email
-                            : rider.role.displayName,
-                        style: TextStyle(color: AppColors.themedGrey),
+                  try {
+                    final details = await auth.loadVisibleProfileHealthDetails(
+                      rider.id,
+                    );
+                    if (!context.mounted) return;
+                    await showDialog<void>(
+                      context: context,
+                      builder: (_) => ProfileHealthDetailsDialog(
+                        name: rider.name,
+                        details: details,
                       ),
-                      actions: [
-                        TextButton(
-                          onPressed: () => Navigator.pop(dialogContext),
-                          child: const Text('Close'),
-                        ),
-                      ],
-                    ),
-                  );
+                    );
+                  } catch (error) {
+                    if (!context.mounted) return;
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text('Unable to load profile details: $error'),
+                      ),
+                    );
+                  }
                 },
                 icon: const Icon(Icons.person_outline),
                 label: const Text('View Profile'),

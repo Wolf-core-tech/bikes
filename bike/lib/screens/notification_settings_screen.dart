@@ -290,6 +290,42 @@ class _NotificationSettingsScreenState
                 onChanged: (value) =>
                     _updatePreference('customNotificationsEnabled', value),
               ),
+              const SizedBox(height: 10),
+              Material(
+                color: AppColors.themedCard,
+                borderRadius: BorderRadius.circular(14),
+                child: ListTile(
+                  contentPadding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 6,
+                  ),
+                  leading: Icon(
+                    Icons.email_outlined,
+                    color: AppColors.themedGrey,
+                  ),
+                  title: Text(
+                    'Email alerts',
+                    style: TextStyle(
+                      color: AppColors.themedText,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  subtitle: Text(
+                    'Email notifications are not configured for this app',
+                    style: TextStyle(
+                      color: AppColors.themedGrey,
+                      fontSize: 12,
+                    ),
+                  ),
+                  trailing: Text(
+                    'Unavailable',
+                    style: TextStyle(
+                      color: AppColors.themedGrey,
+                      fontSize: 11,
+                    ),
+                  ),
+                ),
+              ),
               if (_saving)
                 const Padding(
                   padding: EdgeInsets.only(top: 18),

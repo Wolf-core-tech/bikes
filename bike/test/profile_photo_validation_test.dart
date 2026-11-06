@@ -67,7 +67,7 @@ void main() {
       );
     });
 
-    test('prepares a square compressed JPEG no larger than 512 pixels', () {
+    test('prepares a square compressed JPEG no larger than 1024 pixels', () {
       final source = img.Image(width: 800, height: 400);
       final bytes = Uint8List.fromList(img.encodePng(source));
 
@@ -81,8 +81,19 @@ void main() {
         ),
         'image/jpeg',
       );
-      expect(decoded?.width, 512);
-      expect(decoded?.height, 512);
+      expect(decoded?.width, 400);
+      expect(decoded?.height, 400);
+    });
+
+    test('resizes large photos to a maximum of 1024 by 1024', () {
+      final source = img.Image(width: 1600, height: 1200);
+      final bytes = Uint8List.fromList(img.encodePng(source));
+
+      final prepared = ProfilePhotoValidation.prepareForUpload(bytes);
+      final decoded = img.decodeImage(prepared);
+
+      expect(decoded?.width, 1024);
+      expect(decoded?.height, 1024);
     });
   });
 }

@@ -7,6 +7,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../models/user_model.dart';
+import '../models/profile_health_details.dart';
 import '../services/notification_service.dart';
 import '../utils/profile_photo_validation.dart';
 
@@ -27,6 +28,7 @@ class AuthProvider extends ChangeNotifier {
 
   bool _isInitialized = false;
   UserModel? _currentUser;
+  ProfileHealthDetails _profileHealthDetails = const ProfileHealthDetails();
   List<UserModel> _registeredUsers = [];
   bool _profilePhotoOperationInProgress = false;
 
@@ -38,6 +40,7 @@ class AuthProvider extends ChangeNotifier {
   bool get isLoggedIn => _currentUser != null;
   bool get isInitialized => _isInitialized;
   UserModel? get currentUser => _currentUser;
+  ProfileHealthDetails get profileHealthDetails => _profileHealthDetails;
   List<UserModel> get registeredUsers => List.unmodifiable(_registeredUsers);
 
   AuthProvider() {
@@ -83,6 +86,7 @@ class AuthProvider extends ChangeNotifier {
           for (final user in records) {
             if (user.uid == savedUid) {
               _currentUser = user;
+              _profileHealthDetails = const ProfileHealthDetails();
               _isInitialized = true;
               notifyListeners();
               return true;
@@ -95,11 +99,13 @@ class AuthProvider extends ChangeNotifier {
 
       _isInitialized = true;
       _currentUser = null;
+      _profileHealthDetails = const ProfileHealthDetails();
       notifyListeners();
       return false;
     } catch (_) {
       _isInitialized = true;
       _currentUser = null;
+      _profileHealthDetails = const ProfileHealthDetails();
       notifyListeners();
       return false;
     }
@@ -108,6 +114,7 @@ class AuthProvider extends ChangeNotifier {
   // ─── BUILD LOCAL PROFILE FROM FIREBASE USER ────────────────────────────────
 
   Future<void> _buildUserFromFirebase(User firebaseUser) async {
+    _profileHealthDetails = const ProfileHealthDetails();
     UserModel profile;
     try {
       final doc = await _firestore
@@ -115,9 +122,11 @@ class AuthProvider extends ChangeNotifier {
           .doc(firebaseUser.uid)
           .get();
       final data = doc.data() ?? {};
+      _profileHealthDetails = await _readProfileHealthDetails(firebaseUser.uid);
       profile = UserModel(
         uid: firebaseUser.uid,
         name: data['name'] as String? ?? firebaseUser.displayName ?? 'Rider',
+        bio: data['bio'] as String? ?? '',
         email: firebaseUser.email ?? data['email'] as String? ?? '',
         phone: data['phone'] as String? ?? '',
         password: '',
@@ -170,9 +179,11 @@ class AuthProvider extends ChangeNotifier {
           .doc(firebaseUser.uid)
           .get();
       final data = doc.data() ?? {};
+      _profileHealthDetails = await _readProfileHealthDetails(firebaseUser.uid);
       final updated = UserModel(
         uid: firebaseUser.uid,
         name: data['name'] as String? ?? _currentUser?.name ?? 'Rider',
+        bio: data['bio'] as String? ?? _currentUser?.bio ?? '',
         email: firebaseUser.email ?? _currentUser?.email ?? '',
         phone: data['phone'] as String? ?? _currentUser?.phone ?? '',
         password: _currentUser?.password ?? '',
@@ -318,6 +329,7 @@ class AuthProvider extends ChangeNotifier {
         if (user.email.trim().toLowerCase() == email.trim().toLowerCase() &&
             user.password == password) {
           _currentUser = user;
+          _profileHealthDetails = const ProfileHealthDetails();
           _isInitialized = true;
           // Save session key for local accounts
           await prefs.setString(_sessionUidKey, user.uid ?? '');
@@ -366,6 +378,7 @@ class AuthProvider extends ChangeNotifier {
     final profile = UserModel(
       uid: firebaseUser.uid,
       name: updatedUser.name,
+      bio: updatedUser.bio,
       email: firebaseUser.email ?? updatedUser.email,
       phone: updatedUser.phone,
       password: _currentUser?.password ?? '',
@@ -395,9 +408,125 @@ class AuthProvider extends ChangeNotifier {
     notifyListeners();
   }
 
+  Future<ProfileHealthDetails> loadVisibleProfileHealthDetails(
+    String userId,
+  ) async {
+    final fields = _firestore
+        .collection('profileDetails')
+        .doc(userId)
+        .collection('fields');
+
+    Future<Map<String, dynamic>?> readField(String field) async {
+      try {
+        final snapshot = await fields.doc(field).get();
+        return snapshot.data();
+      } on FirebaseException catch (error) {
+        if (error.code == 'permission-denied') return null;
+        rethrow;
+      }
+    }
+
+    final fieldData = await Future.wait([
+      readField('dateOfBirth'),
+      readField('bloodGroup'),
+      readField('healthIssue'),
+    ]);
+    final dateOfBirthData = fieldData[0];
+    final bloodGroupData = fieldData[1];
+    final healthIssueData = fieldData[2];
+
+    return ProfileHealthDetails(
+      dateOfBirth: _nonEmptyString(dateOfBirthData?['value']),
+      bloodGroup: _nonEmptyString(bloodGroupData?['value']),
+      healthIssue: _nonEmptyString(healthIssueData?['value']),
+      dateOfBirthVisibility: ProfileFieldVisibility.fromValue(
+        dateOfBirthData?['visibility'],
+      ),
+      healthIssueVisibility: ProfileFieldVisibility.fromValue(
+        healthIssueData?['visibility'],
+      ),
+    );
+  }
+
+  Future<void> updateProfileHealthDetails(ProfileHealthDetails details) async {
+    final firebaseUser = _auth.currentUser;
+    if (firebaseUser == null) {
+      throw StateError('Sign in to update your health details.');
+    }
+    if ((details.dateOfBirth?.length ?? 0) > 10 ||
+        (details.healthIssue?.length ?? 0) > 500 ||
+        (details.bloodGroup?.length ?? 0) > 5) {
+      throw const FormatException('One or more health details are too long.');
+    }
+    const bloodGroups = {
+      '',
+      'A+',
+      'A-',
+      'B+',
+      'B-',
+      'AB+',
+      'AB-',
+      'O+',
+      'O-',
+    };
+    if (!bloodGroups.contains(details.bloodGroup ?? '')) {
+      throw const FormatException('Choose a valid blood group.');
+    }
+
+    final fields = _firestore
+        .collection('profileDetails')
+        .doc(firebaseUser.uid)
+        .collection('fields');
+    final batch = _firestore.batch()
+      ..set(fields.doc('dateOfBirth'), {
+        'value': details.dateOfBirth ?? '',
+        'visibility': details.dateOfBirthVisibility.value,
+      })
+      ..set(fields.doc('bloodGroup'), {'value': details.bloodGroup ?? ''})
+      ..set(fields.doc('healthIssue'), {
+        'value': details.healthIssue ?? '',
+        'visibility': details.healthIssueVisibility.value,
+      });
+    await batch.commit();
+    _profileHealthDetails = details;
+    notifyListeners();
+  }
+
+  Future<ProfileHealthDetails> _readProfileHealthDetails(String userId) async {
+    final fields = _firestore
+        .collection('profileDetails')
+        .doc(userId)
+        .collection('fields');
+    final snapshots = await Future.wait([
+      fields.doc('dateOfBirth').get(),
+      fields.doc('bloodGroup').get(),
+      fields.doc('healthIssue').get(),
+    ]);
+    final dateOfBirthData = snapshots[0].data();
+    final bloodGroupData = snapshots[1].data();
+    final healthIssueData = snapshots[2].data();
+    return ProfileHealthDetails(
+      dateOfBirth: _nonEmptyString(dateOfBirthData?['value']),
+      bloodGroup: _nonEmptyString(bloodGroupData?['value']),
+      healthIssue: _nonEmptyString(healthIssueData?['value']),
+      dateOfBirthVisibility: ProfileFieldVisibility.fromValue(
+        dateOfBirthData?['visibility'],
+      ),
+      healthIssueVisibility: ProfileFieldVisibility.fromValue(
+        healthIssueData?['visibility'],
+      ),
+    );
+  }
+
+  String? _nonEmptyString(Object? value) {
+    if (value is! String || value.trim().isEmpty) return null;
+    return value.trim();
+  }
+
   Future<String> updateProfilePhoto(
     Uint8List imageBytes, {
     String contentType = 'image/jpeg',
+    ValueChanged<double>? onProgress,
   }) async {
     final firebaseUser = _auth.currentUser;
     final currentProfile = _currentUser;
@@ -423,31 +552,45 @@ class AuthProvider extends ChangeNotifier {
     final newPhotoPath =
         'profile_photos/${firebaseUser.uid}/${DateTime.now().microsecondsSinceEpoch}_${Random.secure().nextInt(1 << 32)}.jpg';
     final newPhotoRef = storage.ref().child(newPhotoPath);
-    var authPhotoUpdated = false;
 
     try {
-      await newPhotoRef.putData(
+      final uploadTask = newPhotoRef.putData(
         imageBytes,
         SettableMetadata(
           contentType: contentType,
           cacheControl: 'private,max-age=3600',
         ),
       );
-      await firebaseUser.updatePhotoURL(null);
-      authPhotoUpdated = true;
+      final progressSubscription = uploadTask.snapshotEvents.listen(
+        (snapshot) {
+          final totalBytes = snapshot.totalBytes;
+          if (totalBytes > 0) {
+            onProgress?.call(
+              (snapshot.bytesTransferred / totalBytes)
+                  .clamp(0.0, 1.0)
+                  .toDouble(),
+            );
+          }
+        },
+        onError: (Object error) {
+          debugPrint('Profile photo upload progress stream failed: $error');
+        },
+      );
       try {
-        await _firestore.collection('users').doc(firebaseUser.uid).set({
-          'photoUrl': null,
-          'photoPath': newPhotoPath,
-        }, SetOptions(merge: true));
-      } catch (_) {
-        await _restoreAuthPhoto(firebaseUser, currentProfile.photoUrl);
-        authPhotoUpdated = false;
-        rethrow;
+        await uploadTask;
+      } finally {
+        await progressSubscription.cancel();
       }
 
+      final downloadUrl = await newPhotoRef.getDownloadURL();
+      await _firestore.collection('users').doc(firebaseUser.uid).set({
+        'uid': firebaseUser.uid,
+        'photoUrl': downloadUrl,
+        'photoPath': newPhotoPath,
+      }, SetOptions(merge: true));
+
       final updatedProfile = currentProfile.copyWith(
-        clearPhoto: true,
+        photoUrl: downloadUrl,
         photoPath: newPhotoPath,
       );
       _currentUser = updatedProfile;
@@ -460,9 +603,6 @@ class AuthProvider extends ChangeNotifier {
       await _deletePreviousPhoto(oldPhotoPath, firebaseUser.uid);
       return newPhotoPath;
     } catch (_) {
-      if (authPhotoUpdated) {
-        await _restoreAuthPhoto(firebaseUser, currentProfile.photoUrl);
-      }
       await _deletePhotoFile(newPhotoPath, firebaseUser.uid);
       rethrow;
     } finally {
@@ -519,6 +659,66 @@ class AuthProvider extends ChangeNotifier {
     }
   }
 
+  Future<void> deleteAccount({String? password}) async {
+    final firebaseUser = _auth.currentUser;
+    final currentProfile = _currentUser;
+    if (currentProfile == null) {
+      throw StateError('There is no signed-in account to delete.');
+    }
+
+    if (firebaseUser != null) {
+      final usesPassword = firebaseUser.providerData.any(
+        (provider) => provider.providerId == 'password',
+      );
+      if (usesPassword) {
+        if (password == null || password.isEmpty) {
+          throw StateError('Enter your password to confirm account deletion.');
+        }
+        final email = firebaseUser.email;
+        if (email == null || email.isEmpty) {
+          throw StateError('This account cannot be reauthenticated by email.');
+        }
+        await firebaseUser.reauthenticateWithCredential(
+          EmailAuthProvider.credential(email: email, password: password),
+        );
+      }
+
+      final photoPath = _photoStoragePath(currentProfile, firebaseUser.uid);
+      if (photoPath != null) {
+        await _deletePhotoFile(photoPath, firebaseUser.uid);
+      }
+      final detailFields = _firestore
+          .collection('profileDetails')
+          .doc(firebaseUser.uid)
+          .collection('fields');
+      final detailBatch = _firestore.batch()
+        ..delete(detailFields.doc('dateOfBirth'))
+        ..delete(detailFields.doc('bloodGroup'))
+        ..delete(detailFields.doc('healthIssue'));
+      await detailBatch.commit();
+      await _firestore.collection('users').doc(firebaseUser.uid).delete();
+      await _firestore
+          .collection('publicProfiles')
+          .doc(firebaseUser.uid)
+          .delete();
+      await firebaseUser.delete();
+    }
+
+    final prefs = await SharedPreferences.getInstance();
+    final remainingUsers = _registeredUsers
+        .where((user) => user.uid != currentProfile.uid)
+        .toList();
+    _registeredUsers = remainingUsers;
+    await prefs.setString(
+      _registeredUsersKey,
+      json.encode(remainingUsers.map((user) => user.toMap()).toList()),
+    );
+    await prefs.remove(_sessionUidKey);
+    _currentUser = null;
+    _profileHealthDetails = const ProfileHealthDetails();
+    notifyListeners();
+  }
+
   String? _photoStoragePath(UserModel profile, String userId) {
     if (profile.photoPath != null) return profile.photoPath;
     if (profile.photoUrl?.contains('profile_photos%2F$userId%2Fprofile') ==
@@ -570,6 +770,7 @@ class AuthProvider extends ChangeNotifier {
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove(_sessionUidKey);
     _currentUser = null;
+    _profileHealthDetails = const ProfileHealthDetails();
     notifyListeners();
   }
 

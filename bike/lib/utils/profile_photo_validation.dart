@@ -44,12 +44,15 @@ class ProfilePhotoValidation {
       width: side,
       height: side,
     );
-    final resized = img.copyResize(
-      square,
-      width: 512,
-      height: 512,
-      interpolation: img.Interpolation.average,
-    );
+    final resizedSide = side > 1024 ? 1024 : side;
+    final resized = resizedSide == side
+        ? square
+        : img.copyResize(
+            square,
+            width: resizedSide,
+            height: resizedSide,
+            interpolation: img.Interpolation.average,
+          );
     return Uint8List.fromList(img.encodeJpg(resized, quality: 82));
   }
 

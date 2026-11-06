@@ -1,3 +1,6 @@
+import 'dart:typed_data';
+
+import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
@@ -6,6 +9,7 @@ import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
 import '../models/bike_model.dart';
 import '../models/bike_model_catalog.dart';
+import '../models/profile_health_details.dart';
 import '../models/user_model.dart';
 import '../providers/bike_provider.dart';
 import '../providers/auth_provider.dart';
@@ -39,6 +43,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     final displayPhone = (currentUser?.phone.isNotEmpty == true)
         ? currentUser!.phone
         : 'No phone';
+    final healthDetails = authProvider.profileHealthDetails;
 
     return Scaffold(
       backgroundColor: AppColors.themedBackground,
@@ -73,62 +78,44 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     photoUrl: currentUser?.photoUrl,
                     photoPath: currentUser?.photoPath,
                     compact: true,
-                  ),
-                  const SizedBox(height: 16),
-                  Text(
-                    displayName,
-                    style: TextStyle(
-                      color: AppColors.themedText,
-                      fontSize: 22,
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    displayEmail,
-                    style: TextStyle(color: AppColors.themedGrey, fontSize: 14),
-                  ),
-                  const SizedBox(height: 16),
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 12,
-                      vertical: 6,
-                    ),
-                    decoration: BoxDecoration(
-                      color: AppColors.orangeGlow,
-                      borderRadius: BorderRadius.circular(20),
-                      border: Border.all(
-                        color: AppColors.orange.withValues(alpha: 0.5),
-                      ),
-                    ),
-                    child: const Text(
-                      '👑 LEADER',
-                      style: TextStyle(
-                        color: AppColors.orange,
-                        fontSize: 12,
-                        fontWeight: FontWeight.w800,
-                        letterSpacing: 0.8,
-                      ),
-                    ),
+                    displayName: displayName,
+                    displayEmail: displayEmail,
                   ),
                 ],
               ),
             ),
-
-            const SizedBox(height: 24),
-
-            // ─── Profile Information ───────────────────────────────────────────
-            Text(
-              'Profile Information',
-              style: TextStyle(
-                color: AppColors.themedText,
-                fontSize: 18,
-                fontWeight: FontWeight.w700,
+            const SizedBox(height: 12),
+            Align(
+              alignment: Alignment.centerLeft,
+              child: Text(
+                'Personal Information',
+                style: TextStyle(
+                  color: AppColors.themedText,
+                  fontSize: 18,
+                  fontWeight: FontWeight.w700,
+                ),
               ),
             ),
-
-            const SizedBox(height: 16),
-
+            const SizedBox(height: 12),
+            _ProfileInfoTile(
+              icon: Icons.notes_outlined,
+              title: 'Bio',
+              value: currentUser?.bio.isNotEmpty == true
+                  ? currentUser!.bio
+                  : 'Add a short bio',
+              onTap: () => _showEditFieldDialog(
+                context,
+                'Bio',
+                currentUser?.bio ?? '',
+                (value) {
+                  if (currentUser != null) {
+                    context.read<AuthProvider>().updateCurrentUser(
+                      currentUser.copyWith(bio: value),
+                    );
+                  }
+                },
+              ),
+            ),
             _ProfileInfoTile(
               icon: Icons.email_outlined,
               title: 'Email',
@@ -139,6 +126,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       context.read<AuthProvider>().updateCurrentUser(
                         UserModel(
                           name: currentUser.name,
+                          bio: currentUser.bio,
                           email: value,
                           phone: currentUser.phone,
                           password: currentUser.password,
@@ -155,7 +143,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     }
                   }),
             ),
-            const SizedBox(height: 12),
             _ProfileInfoTile(
               icon: Icons.phone_outlined,
               title: 'Phone',
@@ -166,6 +153,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       context.read<AuthProvider>().updateCurrentUser(
                         UserModel(
                           name: currentUser.name,
+                          bio: currentUser.bio,
                           email: currentUser.email,
                           phone: value,
                           password: currentUser.password,
@@ -181,6 +169,54 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       );
                     }
                   }),
+            ),
+            _ProfileInfoTile(
+              icon: Icons.cake_outlined,
+              title: 'Date of birth',
+              value: healthDetails.dateOfBirth == null
+                  ? 'Add date of birth'
+                  : _formatDateOfBirth(healthDetails.dateOfBirth!),
+              onTap: () => _pickDateOfBirth(context, healthDetails),
+              trailing: _visibilityDropdown(
+                healthDetails.dateOfBirthVisibility,
+                (visibility) => _updateHealthDetails(
+                  healthDetails.copyWith(dateOfBirthVisibility: visibility),
+                ),
+              ),
+            ),
+            _ProfileInfoTile(
+              icon: Icons.bloodtype_outlined,
+              title: 'Blood group',
+              value: healthDetails.bloodGroup ?? 'Add blood group',
+              onTap: () => _showBloodGroupPicker(context, healthDetails),
+              trailing: Text(
+                'Everyone',
+                style: TextStyle(color: AppColors.themedGrey, fontSize: 12),
+              ),
+            ),
+            _ProfileInfoTile(
+              icon: Icons.health_and_safety_outlined,
+              title: 'Health issue',
+              value: healthDetails.healthIssue ?? 'Add health issue',
+              onTap: () => _showEditFieldDialog(
+                context,
+                'Health issue',
+                healthDetails.healthIssue ?? '',
+                (value) => _updateHealthDetails(
+                  healthDetails.copyWith(
+                    healthIssue: value,
+                    clearHealthIssue: value.isEmpty,
+                  ),
+                ),
+                allowEmpty: true,
+                maxLines: 3,
+              ),
+              trailing: _visibilityDropdown(
+                healthDetails.healthIssueVisibility,
+                (visibility) => _updateHealthDetails(
+                  healthDetails.copyWith(healthIssueVisibility: visibility),
+                ),
+              ),
             ),
 
             const SizedBox(height: 24),
@@ -331,62 +367,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
             const SizedBox(height: 24),
 
-            // ─── Ride Statistics ───────────────────────────────────────────────
-            Text(
-              'Ride Statistics',
-              style: TextStyle(
-                color: AppColors.themedText,
-                fontSize: 18,
-                fontWeight: FontWeight.w700,
-              ),
-            ),
-
-            const SizedBox(height: 16),
-
-            Row(
-              children: [
-                Expanded(
-                  child: _StatCard(
-                    icon: Icons.directions_run_outlined,
-                    title: 'Total Rides',
-                    value: '24',
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: _StatCard(
-                    icon: Icons.space_bar,
-                    title: 'Total KM',
-                    value: '2840',
-                  ),
-                ),
-              ],
-            ),
-
-            const SizedBox(height: 12),
-
-            Row(
-              children: [
-                Expanded(
-                  child: _StatCard(
-                    icon: Icons.access_time_outlined,
-                    title: 'Ride Hours',
-                    value: '156h',
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: _StatCard(
-                    icon: Icons.groups_outlined,
-                    title: 'Groups Led',
-                    value: '8',
-                  ),
-                ),
-              ],
-            ),
-
-            const SizedBox(height: 24),
-
             // ─── Action Buttons ───────────────────────────────────────────────
             SizedBox(
               width: double.infinity,
@@ -495,8 +475,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
     BuildContext context,
     String fieldName,
     String currentValue,
-    Function(String) onSave,
-  ) {
+    Function(String) onSave, {
+    bool allowEmpty = false,
+    int maxLines = 1,
+  }) {
     final ctrl = TextEditingController(text: currentValue);
     showDialog(
       context: context,
@@ -516,6 +498,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
         content: TextField(
           controller: ctrl,
           autofocus: true,
+          maxLines: maxLines,
+          maxLength: fieldName == 'Health issue' ? 500 : null,
           style: TextStyle(color: AppColors.themedText),
           decoration: InputDecoration(
             hintText: 'Enter $fieldName',
@@ -549,7 +533,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
               ),
             ),
             onPressed: () {
-              if (ctrl.text.trim().isNotEmpty) {
+              if (ctrl.text.trim().isNotEmpty ||
+                  allowEmpty ||
+                  fieldName == 'Bio') {
                 onSave(ctrl.text.trim());
                 Navigator.pop(ctx);
               }
@@ -564,10 +550,118 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
+  Widget _visibilityDropdown(
+    ProfileFieldVisibility visibility,
+    ValueChanged<ProfileFieldVisibility> onChanged,
+  ) {
+    return DropdownButtonHideUnderline(
+      child: DropdownButton<ProfileFieldVisibility>(
+        value: visibility,
+        isDense: true,
+        icon: const Icon(Icons.arrow_drop_down, color: AppColors.orange),
+        items: ProfileFieldVisibility.values
+            .map(
+              (option) => DropdownMenuItem(
+                value: option,
+                child: Text(
+                  option.label,
+                  style: TextStyle(color: AppColors.themedText, fontSize: 12),
+                ),
+              ),
+            )
+            .toList(),
+        onChanged: (value) {
+          if (value != null) onChanged(value);
+        },
+      ),
+    );
+  }
+
+  Future<void> _updateHealthDetails(ProfileHealthDetails details) async {
+    try {
+      await context.read<AuthProvider>().updateProfileHealthDetails(details);
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Could not update health details: $error'),
+          backgroundColor: AppColors.danger,
+        ),
+      );
+    }
+  }
+
+  Future<void> _pickDateOfBirth(
+    BuildContext context,
+    ProfileHealthDetails details,
+  ) async {
+    final today = DateTime.now();
+    final parsed = DateTime.tryParse(details.dateOfBirth ?? '');
+    final initialDate =
+        parsed != null && parsed.year >= 1900 && !parsed.isAfter(today)
+        ? parsed
+        : DateTime(2000, 1, 1);
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: initialDate,
+      firstDate: DateTime(1900),
+      lastDate: today,
+      helpText: 'Select date of birth',
+    );
+    if (picked == null || !mounted) return;
+    final value =
+        '${picked.year.toString().padLeft(4, '0')}-'
+        '${picked.month.toString().padLeft(2, '0')}-'
+        '${picked.day.toString().padLeft(2, '0')}';
+    await _updateHealthDetails(details.copyWith(dateOfBirth: value));
+  }
+
+  Future<void> _showBloodGroupPicker(
+    BuildContext context,
+    ProfileHealthDetails details,
+  ) async {
+    const bloodGroups = ['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-'];
+    final selected = await showModalBottomSheet<String>(
+      context: context,
+      backgroundColor: AppColors.themedSurface,
+      builder: (sheetContext) => SafeArea(
+        child: ListView(
+          shrinkWrap: true,
+          children: [
+            for (final group in bloodGroups)
+              ListTile(
+                title: Text(group),
+                trailing: details.bloodGroup == group
+                    ? const Icon(Icons.check, color: AppColors.orange)
+                    : null,
+                onTap: () => Navigator.pop(sheetContext, group),
+              ),
+            ListTile(
+              title: const Text('Clear blood group'),
+              onTap: () => Navigator.pop(sheetContext, ''),
+            ),
+          ],
+        ),
+      ),
+    );
+    if (selected == null || !mounted) return;
+    await _updateHealthDetails(
+      details.copyWith(bloodGroup: selected, clearBloodGroup: selected.isEmpty),
+    );
+  }
+
+  String _formatDateOfBirth(String value) {
+    final date = DateTime.tryParse(value);
+    if (date == null) return value;
+    return '${date.day.toString().padLeft(2, '0')}/'
+        '${date.month.toString().padLeft(2, '0')}/${date.year}';
+  }
+
   void _showEditProfileDialog(BuildContext context) {
     final currentUser = context.read<AuthProvider>().currentUser;
     final nameCtrl = TextEditingController(text: currentUser?.name ?? '');
     final emailCtrl = TextEditingController(text: currentUser?.email ?? '');
+    final bioCtrl = TextEditingController(text: currentUser?.bio ?? '');
     final phoneCtrl = TextEditingController(
       text: indianPhoneNumberDigits(currentUser?.phone ?? ''),
     );
@@ -674,6 +768,32 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   fillColor: AppColors.themedCard,
                 ),
               ),
+              const SizedBox(height: 16),
+              TextField(
+                controller: bioCtrl,
+                maxLines: 3,
+                maxLength: 160,
+                style: TextStyle(color: AppColors.themedText),
+                decoration: InputDecoration(
+                  labelText: 'Bio',
+                  hintText: 'Tell your squad a little about yourself',
+                  labelStyle: TextStyle(color: AppColors.themedGrey),
+                  hintStyle: TextStyle(color: AppColors.themedGrey),
+                  enabledBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: BorderSide(color: AppColors.themedGreyBorder),
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: const BorderSide(
+                      color: AppColors.orange,
+                      width: 1.5,
+                    ),
+                  ),
+                  filled: true,
+                  fillColor: AppColors.themedCard,
+                ),
+              ),
             ],
           ),
         ),
@@ -712,6 +832,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   context.read<AuthProvider>().updateCurrentUser(
                     UserModel(
                       name: nameCtrl.text.trim(),
+                      bio: bioCtrl.text.trim(),
                       email: emailCtrl.text.trim(),
                       phone: toIndianPhoneNumber(phoneCtrl.text.trim()),
                       password: currentUser.password,
@@ -752,11 +873,15 @@ class _ProfilePhotoPicker extends StatefulWidget {
     required this.photoUrl,
     this.photoPath,
     this.compact = false,
+    this.displayName,
+    this.displayEmail,
   });
 
   final String? photoUrl;
   final String? photoPath;
   final bool compact;
+  final String? displayName;
+  final String? displayEmail;
 
   @override
   State<_ProfilePhotoPicker> createState() => _ProfilePhotoPickerState();
@@ -767,6 +892,7 @@ class _ProfilePhotoPickerState extends State<_ProfilePhotoPicker> {
   bool _isBusy = false;
   bool _isManaging = false;
   bool _isUploading = false;
+  double _uploadProgress = 0;
   String? _photoUrl;
   String? _photoPath;
 
@@ -775,6 +901,9 @@ class _ProfilePhotoPickerState extends State<_ProfilePhotoPicker> {
     super.initState();
     _photoUrl = widget.photoUrl;
     _photoPath = widget.photoPath;
+    if (defaultTargetPlatform == TargetPlatform.android) {
+      WidgetsBinding.instance.addPostFrameCallback((_) => _recoverLostImage());
+    }
   }
 
   @override
@@ -870,93 +999,156 @@ class _ProfilePhotoPickerState extends State<_ProfilePhotoPicker> {
         source: action == _ProfilePhotoAction.camera
             ? ImageSource.camera
             : ImageSource.gallery,
-        imageQuality: 90,
-        maxWidth: 2048,
-        maxHeight: 2048,
+        imageQuality: 85,
+        maxWidth: 1024,
+        maxHeight: 1024,
       );
       if (image == null || !mounted) return;
 
-      final sourceLength = await image.length();
-      if (sourceLength > ProfilePhotoValidation.maxSourceBytes) {
-        throw const FormatException('Image must be smaller than 20 MB.');
-      }
-      final sourceBytes = await image.readAsBytes();
-      ProfilePhotoValidation.validateAndGetContentType(
-        sourceBytes,
-        maxBytes: ProfilePhotoValidation.maxSourceBytes,
-      );
-      if (!mounted) return;
-
-      final croppedImage = await ImageCropper().cropImage(
-        sourcePath: image.path,
-        maxWidth: 512,
-        maxHeight: 512,
-        aspectRatio: const CropAspectRatio(ratioX: 1, ratioY: 1),
-        compressFormat: ImageCompressFormat.jpg,
-        compressQuality: 82,
-        uiSettings: [
-          AndroidUiSettings(
-            toolbarTitle: 'Crop profile photo',
-            toolbarColor: AppColors.orange,
-            toolbarWidgetColor: Colors.white,
-            activeControlsWidgetColor: AppColors.orange,
-            cropStyle: CropStyle.circle,
-            lockAspectRatio: true,
-          ),
-          IOSUiSettings(
-            title: 'Crop profile photo',
-            doneButtonTitle: 'Use photo',
-            cancelButtonTitle: 'Cancel',
-            cropStyle: CropStyle.circle,
-            aspectRatioLockEnabled: true,
-            resetAspectRatioEnabled: false,
-            aspectRatioPickerButtonHidden: true,
-          ),
-          if (kIsWeb)
-            WebUiSettings(
-              context: context,
-              presentStyle: WebPresentStyle.dialog,
-              viewwMode: WebViewMode.mode_1,
-              dragMode: WebDragMode.move,
-              minCropBoxWidth: 100,
-              minCropBoxHeight: 100,
-              themeData: const WebThemeData(rotateIconColor: AppColors.orange),
-            ),
-        ],
-      );
-      if (croppedImage == null || !mounted) return;
-
-      final croppedBytes = await croppedImage.readAsBytes();
-      ProfilePhotoValidation.validateAndGetContentType(
-        croppedBytes,
-        maxBytes: ProfilePhotoValidation.maxSourceBytes,
-      );
-      final imageBytes = ProfilePhotoValidation.prepareForUpload(croppedBytes);
-      final contentType = ProfilePhotoValidation.validateAndGetContentType(
-        imageBytes,
-        maxBytes: ProfilePhotoValidation.maxUploadBytes,
-      );
-      if (contentType != 'image/jpeg') {
-        throw const FormatException('The cropped photo must be a JPEG image.');
-      }
-
-      final confirmed = await _showPreview(imageBytes);
-      if (!mounted) return;
-      if (confirmed != true) return;
-
-      setState(() => _isUploading = true);
-      final photoPath = await context.read<AuthProvider>().updateProfilePhoto(
-        imageBytes,
-        contentType: contentType,
-      );
-      if (!mounted) return;
-      setState(() {
-        _photoUrl = null;
-        _photoPath = photoPath;
-      });
-      _showMessage('Profile photo updated.');
+      await _processPickedImage(image);
     } on PlatformException catch (error) {
-      if (!mounted) return;
+      _showPhotoError(error);
+    } catch (error) {
+      _showPhotoError(error);
+    } finally {
+      _isManaging = false;
+      if (mounted) {
+        setState(() {
+          _isBusy = false;
+          _isUploading = false;
+        });
+      }
+    }
+  }
+
+  Future<void> _recoverLostImage() async {
+    try {
+      final response = await _imagePicker.retrieveLostData();
+      if (!mounted || response.isEmpty) return;
+
+      final files = response.files;
+      if (files != null && files.isNotEmpty) {
+        _isManaging = true;
+        setState(() => _isBusy = true);
+        await _processPickedImage(files.first);
+      } else if (response.exception != null) {
+        throw response.exception!;
+      }
+    } on PlatformException catch (error) {
+      _showPhotoError(error);
+    } catch (error) {
+      _showPhotoError(error);
+    } finally {
+      _isManaging = false;
+      if (mounted) {
+        setState(() {
+          _isBusy = false;
+          _isUploading = false;
+        });
+      }
+    }
+  }
+
+  Future<void> _processPickedImage(XFile image) async {
+    final sourceLength = await image.length();
+    if (sourceLength > ProfilePhotoValidation.maxSourceBytes) {
+      throw const FormatException('Image must be smaller than 20 MB.');
+    }
+    final sourceHeader = await image.openRead(0, 12).fold<BytesBuilder>(
+      BytesBuilder(),
+      (builder, chunk) {
+        builder.add(chunk);
+        return builder;
+      },
+    );
+    ProfilePhotoValidation.validateAndGetContentType(
+      sourceHeader.takeBytes(),
+      maxBytes: ProfilePhotoValidation.maxSourceBytes,
+    );
+    if (!mounted) return;
+
+    final croppedImage = await ImageCropper().cropImage(
+      sourcePath: image.path,
+      maxWidth: 1024,
+      maxHeight: 1024,
+      aspectRatio: const CropAspectRatio(ratioX: 1, ratioY: 1),
+      compressFormat: ImageCompressFormat.jpg,
+      compressQuality: 82,
+      uiSettings: [
+        AndroidUiSettings(
+          toolbarTitle: 'Crop profile photo',
+          toolbarColor: AppColors.orange,
+          toolbarWidgetColor: Colors.white,
+          activeControlsWidgetColor: AppColors.orange,
+          cropStyle: CropStyle.circle,
+          lockAspectRatio: true,
+        ),
+        IOSUiSettings(
+          title: 'Crop profile photo',
+          doneButtonTitle: 'Use photo',
+          cancelButtonTitle: 'Cancel',
+          cropStyle: CropStyle.circle,
+          aspectRatioLockEnabled: true,
+          resetAspectRatioEnabled: false,
+          aspectRatioPickerButtonHidden: true,
+        ),
+        if (kIsWeb)
+          WebUiSettings(
+            context: context,
+            presentStyle: WebPresentStyle.dialog,
+            viewwMode: WebViewMode.mode_1,
+            dragMode: WebDragMode.move,
+            minCropBoxWidth: 100,
+            minCropBoxHeight: 100,
+            themeData: const WebThemeData(rotateIconColor: AppColors.orange),
+          ),
+      ],
+    );
+    if (croppedImage == null || !mounted) return;
+
+    final croppedBytes = await croppedImage.readAsBytes();
+    ProfilePhotoValidation.validateAndGetContentType(
+      croppedBytes,
+      maxBytes: ProfilePhotoValidation.maxSourceBytes,
+    );
+    final imageBytes = await compute<Uint8List, Uint8List>(
+      ProfilePhotoValidation.prepareForUpload,
+      croppedBytes,
+    );
+    final contentType = ProfilePhotoValidation.validateAndGetContentType(
+      imageBytes,
+      maxBytes: ProfilePhotoValidation.maxUploadBytes,
+    );
+    if (contentType != 'image/jpeg') {
+      throw const FormatException('The cropped photo must be a JPEG image.');
+    }
+
+    final confirmed = await _showPreview(imageBytes);
+    if (!mounted || confirmed != true) return;
+
+    setState(() {
+      _isUploading = true;
+      _uploadProgress = 0;
+    });
+    final photoPath = await context.read<AuthProvider>().updateProfilePhoto(
+      imageBytes,
+      contentType: contentType,
+      onProgress: (progress) {
+        if (mounted) setState(() => _uploadProgress = progress);
+      },
+    );
+    if (!mounted) return;
+    setState(() {
+      _photoUrl = null;
+      _uploadProgress = 0;
+      _photoPath = photoPath;
+    });
+    _showMessage('Profile photo updated.');
+  }
+
+  void _showPhotoError(Object error) {
+    if (!mounted) return;
+    if (error is PlatformException) {
       final message = switch (error.code) {
         'camera_access_denied' || 'camera_access_denied_without_prompt' =>
           'Camera access is denied. Enable it in your device settings.',
@@ -968,18 +1160,29 @@ class _ProfilePhotoPickerState extends State<_ProfilePhotoPicker> {
           'Could not process the profile photo: ${error.message ?? error.code}',
       };
       _showMessage(message, isError: true);
-    } catch (error) {
-      if (!mounted) return;
-      _showMessage('Could not update profile photo: $error', isError: true);
-    } finally {
-      _isManaging = false;
-      if (mounted) {
-        setState(() {
-          _isBusy = false;
-          _isUploading = false;
-        });
-      }
+      return;
     }
+    if (error is FirebaseException) {
+      final message = switch (error.code) {
+        'permission-denied' || 'unauthorized' =>
+          'You do not have permission to upload this profile photo.',
+        'unauthenticated' =>
+          'Your session has expired. Sign in again and retry.',
+        'network-request-failed' || 'retry-limit-exceeded' =>
+          'Network error while uploading. Check your connection and retry.',
+        _ => error.message ?? error.code,
+      };
+      _showMessage('Could not update profile photo: $message', isError: true);
+      return;
+    }
+    if (error is FormatException || error is StateError) {
+      _showMessage(
+        error.toString().replaceFirst('Bad state: ', ''),
+        isError: true,
+      );
+      return;
+    }
+    _showMessage('Could not update profile photo: $error', isError: true);
   }
 
   Future<bool> _confirmRemoval() async {
@@ -1066,67 +1269,148 @@ class _ProfilePhotoPickerState extends State<_ProfilePhotoPicker> {
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      children: [
-        Semantics(
-          button: true,
-          label: 'Edit profile photo',
-          child: InkWell(
-            onTap: _isBusy ? null : _managePhoto,
-            customBorder: const CircleBorder(),
-            child: Stack(
-              clipBehavior: Clip.none,
-              children: [
-                ProfilePhoto(
-                  photoUrl: _photoUrl,
-                  photoPath: _photoPath,
-                  size: 88,
+    final avatar = Semantics(
+      button: true,
+      label: 'Edit profile photo',
+      child: InkWell(
+        onTap: _isBusy ? null : _managePhoto,
+        customBorder: const CircleBorder(),
+        child: Stack(
+          clipBehavior: Clip.none,
+          children: [
+            ProfilePhoto(
+              photoUrl: _photoUrl,
+              photoPath: _photoPath,
+              size: widget.compact ? 76 : 88,
+            ),
+            Positioned(
+              right: 0,
+              bottom: 0,
+              child: Container(
+                width: 30,
+                height: 30,
+                decoration: BoxDecoration(
+                  color: AppColors.orange,
+                  shape: BoxShape.circle,
+                  border: Border.all(color: AppColors.themedSurface, width: 2),
                 ),
-                Positioned(
-                  right: 0,
-                  bottom: 0,
-                  child: Container(
-                    width: 30,
-                    height: 30,
-                    decoration: BoxDecoration(
-                      color: AppColors.orange,
-                      shape: BoxShape.circle,
-                      border: Border.all(
-                        color: AppColors.themedSurface,
-                        width: 2,
-                      ),
-                    ),
-                    child: Icon(
-                      _isBusy ? Icons.hourglass_top : Icons.camera_alt,
-                      size: 15,
-                      color: Colors.white,
-                    ),
-                  ),
+                child: Icon(
+                  _isBusy ? Icons.hourglass_top : Icons.camera_alt,
+                  size: 15,
+                  color: Colors.white,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+    final editButton = OutlinedButton.icon(
+      onPressed: _isBusy ? null : _managePhoto,
+      icon: _isBusy
+          ? const SizedBox(
+              width: 16,
+              height: 16,
+              child: CircularProgressIndicator(strokeWidth: 2),
+            )
+          : const Icon(Icons.add_a_photo_outlined),
+      label: Text(
+        _isBusy
+            ? _isUploading
+                  ? 'Uploading photo...'
+                  : 'Preparing photo...'
+            : widget.compact
+            ? 'Edit photo'
+            : 'Change photo',
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+      ),
+    );
+    final uploadProgress = _isUploading
+        ? Padding(
+            padding: const EdgeInsets.only(top: 8),
+            child: Column(
+              children: [
+                LinearProgressIndicator(
+                  value: _uploadProgress > 0 ? _uploadProgress : null,
+                  color: AppColors.orange,
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  '${(_uploadProgress * 100).round()}%',
+                  style: Theme.of(context).textTheme.labelSmall,
                 ),
               ],
             ),
+          )
+        : const SizedBox.shrink();
+
+    if (widget.compact) {
+      return Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          avatar,
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  widget.displayName ?? '',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    color: AppColors.themedText,
+                    fontSize: 20,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  widget.displayEmail ?? '',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(color: AppColors.themedGrey, fontSize: 13),
+                ),
+                const SizedBox(height: 8),
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 4,
+                  ),
+                  decoration: BoxDecoration(
+                    color: AppColors.orangeGlow,
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(
+                      color: AppColors.orange.withValues(alpha: 0.5),
+                    ),
+                  ),
+                  child: const Text(
+                    '👑 LEADER',
+                    style: TextStyle(
+                      color: AppColors.orange,
+                      fontSize: 11,
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: 0.7,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 6),
+                editButton,
+                uploadProgress,
+              ],
+            ),
           ),
-        ),
+        ],
+      );
+    }
+
+    return Column(
+      children: [
+        avatar,
         const SizedBox(height: 10),
-        OutlinedButton.icon(
-          onPressed: _isBusy ? null : _managePhoto,
-          icon: _isBusy
-              ? const SizedBox(
-                  width: 16,
-                  height: 16,
-                  child: CircularProgressIndicator(strokeWidth: 2),
-                )
-              : const Icon(Icons.add_a_photo_outlined),
-          label: Text(
-            _isBusy
-                ? _isUploading
-                      ? 'Uploading photo...'
-                      : 'Preparing photo...'
-                : widget.compact
-                ? 'Edit photo'
-                : 'Change photo',
-          ),
-        ),
+        editButton,
+        if (_isUploading) SizedBox(width: 140, child: uploadProgress),
       ],
     );
   }
@@ -1139,12 +1423,14 @@ class _ProfileInfoTile extends StatelessWidget {
   final String title;
   final String value;
   final VoidCallback? onTap;
+  final Widget? trailing;
 
   const _ProfileInfoTile({
     required this.icon,
     required this.title,
     required this.value,
     this.onTap,
+    this.trailing,
   });
 
   @override
@@ -1156,18 +1442,10 @@ class _ProfileInfoTile extends StatelessWidget {
         decoration: BoxDecoration(
           color: AppColors.themedCard,
           borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: AppColors.themedGreyBorder, width: 1),
         ),
         child: Row(
           children: [
-            Container(
-              padding: const EdgeInsets.all(10),
-              decoration: BoxDecoration(
-                color: AppColors.orangeGlow,
-                borderRadius: BorderRadius.circular(10),
-              ),
-              child: Icon(icon, color: AppColors.orange, size: 20),
-            ),
+            Icon(icon, color: AppColors.orange, size: 20),
             const SizedBox(width: 14),
             Expanded(
               child: Column(
@@ -1193,57 +1471,14 @@ class _ProfileInfoTile extends StatelessWidget {
                 ],
               ),
             ),
-            Icon(Icons.chevron_right, color: AppColors.themedGrey, size: 20),
+            trailing ??
+                Icon(
+                  Icons.chevron_right,
+                  color: AppColors.themedGrey,
+                  size: 20,
+                ),
           ],
         ),
-      ),
-    );
-  }
-}
-
-class _StatCard extends StatelessWidget {
-  final IconData icon;
-  final String title;
-  final String value;
-
-  const _StatCard({
-    required this.icon,
-    required this.title,
-    required this.value,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: AppColors.themedCard,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: AppColors.themedGreyBorder, width: 1),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Icon(icon, color: AppColors.orange, size: 24),
-          const SizedBox(height: 10),
-          Text(
-            title,
-            style: TextStyle(
-              color: AppColors.themedGrey,
-              fontSize: 12,
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-          const SizedBox(height: 6),
-          Text(
-            value,
-            style: const TextStyle(
-              color: AppColors.orange,
-              fontSize: 20,
-              fontWeight: FontWeight.w800,
-            ),
-          ),
-        ],
       ),
     );
   }

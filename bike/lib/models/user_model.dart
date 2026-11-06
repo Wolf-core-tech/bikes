@@ -3,6 +3,7 @@ import 'dart:convert';
 class UserModel {
   final String? uid;
   final String name;
+  final String bio;
   final String email;
   final String phone;
   final String password;
@@ -19,6 +20,7 @@ class UserModel {
   UserModel({
     this.uid,
     required this.name,
+    this.bio = '',
     required this.email,
     required this.phone,
     required this.password,
@@ -38,6 +40,7 @@ class UserModel {
     return {
       'uid': uid,
       'name': name,
+      'bio': bio,
       'email': email,
       'phone': phone,
       'photoUrl': photoUrl,
@@ -57,6 +60,7 @@ class UserModel {
     return {
       'uid': uid,
       'name': name,
+      'bio': bio,
       'email': email,
       'phone': phone,
       'photoUrl': photoUrl,
@@ -76,6 +80,7 @@ class UserModel {
     return UserModel(
       uid: map['uid'],
       name: map['name'] ?? '',
+      bio: map['bio'] ?? '',
       email: map['email'] ?? '',
       phone: map['phone'] ?? '',
       photoUrl: map['photoUrl'] as String?,
@@ -98,6 +103,7 @@ class UserModel {
 
   UserModel copyWith({
     String? name,
+    String? bio,
     String? email,
     String? phone,
     String? password,
@@ -115,6 +121,7 @@ class UserModel {
   }) => UserModel(
     uid: uid,
     name: name ?? this.name,
+    bio: bio ?? this.bio,
     email: email ?? this.email,
     phone: phone ?? this.phone,
     password: password ?? this.password,

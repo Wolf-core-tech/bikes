@@ -8,6 +8,7 @@ import '../providers/community_provider.dart';
 import '../services/chat_service.dart';
 import '../theme/app_theme.dart';
 import '../widgets/friend_presence_label.dart';
+import '../widgets/profile_health_details_dialog.dart';
 import 'chat_screen.dart';
 
 class FriendsScreen extends StatefulWidget {
@@ -28,7 +29,9 @@ class _FriendsScreenState extends State<FriendsScreen>
     super.initState();
     _tabController = TabController(length: 2, vsync: this);
     _searchController.addListener(() {
-      setState(() => _searchQuery = _searchController.text.trim().toLowerCase());
+      setState(
+        () => _searchQuery = _searchController.text.trim().toLowerCase(),
+      );
     });
   }
 
@@ -57,12 +60,12 @@ class _FriendsScreenState extends State<FriendsScreen>
     final filteredFriends = _searchQuery.isEmpty
         ? allFriends
         : allFriends
-            .where(
-              (f) =>
-                  f.name.toLowerCase().contains(_searchQuery) ||
-                  f.email.toLowerCase().contains(_searchQuery),
-            )
-            .toList();
+              .where(
+                (f) =>
+                    f.name.toLowerCase().contains(_searchQuery) ||
+                    f.email.toLowerCase().contains(_searchQuery),
+              )
+              .toList();
 
     final pendingRequests = community.receivedRequests(currentId);
     final pendingCount = pendingRequests.length;
@@ -129,10 +132,7 @@ class _FriendsScreenState extends State<FriendsScreen>
             currentId: currentId,
           ),
           // ── Tab 2: Requests ─────────────────────────────────────────────────
-          _RequestsTab(
-            requests: pendingRequests,
-            currentId: currentId,
-          ),
+          _RequestsTab(requests: pendingRequests, currentId: currentId),
         ],
       ),
     );
@@ -174,8 +174,31 @@ class _FriendsTab extends StatelessWidget {
       );
     } catch (error) {
       if (!context.mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Unable to open chat: $error')));
+    }
+  }
+
+  Future<void> _showFriendProfile(
+    BuildContext context,
+    UserModel friend,
+  ) async {
+    if (friend.uid == null) return;
+    try {
+      final details = await context
+          .read<AuthProvider>()
+          .loadVisibleProfileHealthDetails(friend.uid!);
+      if (!context.mounted) return;
+      await showDialog<void>(
+        context: context,
+        builder: (_) =>
+            ProfileHealthDetailsDialog(name: friend.name, details: details),
+      );
+    } catch (error) {
+      if (!context.mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Unable to open chat: $error')),
+        SnackBar(content: Text('Unable to load profile details: $error')),
       );
     }
   }
@@ -196,7 +219,10 @@ class _FriendsTab extends StatelessWidget {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
-            child: Text('Cancel', style: TextStyle(color: AppColors.themedGrey)),
+            child: Text(
+              'Cancel',
+              style: TextStyle(color: AppColors.themedGrey),
+            ),
           ),
           ElevatedButton(
             style: ElevatedButton.styleFrom(
@@ -225,10 +251,7 @@ class _FriendsTab extends StatelessWidget {
     } catch (e) {
       if (!context.mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Error: $e'),
-          backgroundColor: AppColors.orange,
-        ),
+        SnackBar(content: Text('Error: $e'), backgroundColor: AppColors.orange),
       );
     }
   }
@@ -265,8 +288,7 @@ class _FriendsTab extends StatelessWidget {
               ),
               focusedBorder: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(14),
-                borderSide:
-                    BorderSide(color: AppColors.orange, width: 1.5),
+                borderSide: BorderSide(color: AppColors.orange, width: 1.5),
               ),
             ),
           ),
@@ -280,7 +302,8 @@ class _FriendsTab extends StatelessWidget {
               children: [
                 _StatPill(
                   icon: Icons.people,
-                  label: '$allFriendsCount Friend${allFriendsCount != 1 ? 's' : ''}',
+                  label:
+                      '$allFriendsCount Friend${allFriendsCount != 1 ? 's' : ''}',
                 ),
               ],
             ),
@@ -298,6 +321,7 @@ class _FriendsTab extends StatelessWidget {
                     final friend = friends[index];
                     return _FriendCard(
                       friend: friend,
+                      onViewProfile: () => _showFriendProfile(context, friend),
                       onMessage: () => _openChat(context, friend),
                       onUnfollow: () => _unfollowFriend(context, friend),
                     );
@@ -312,11 +336,13 @@ class _FriendsTab extends StatelessWidget {
 // ─── Friend Card ──────────────────────────────────────────────────────────────
 class _FriendCard extends StatelessWidget {
   final UserModel friend;
+  final VoidCallback onViewProfile;
   final VoidCallback onMessage;
   final VoidCallback onUnfollow;
 
   const _FriendCard({
     required this.friend,
+    required this.onViewProfile,
     required this.onMessage,
     required this.onUnfollow,
   });
@@ -374,31 +400,38 @@ class _FriendCard extends StatelessWidget {
 
           // Name + presence
           Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  friend.name,
-                  style: TextStyle(
-                    color: AppColors.themedText,
-                    fontWeight: FontWeight.w700,
-                    fontSize: 15,
-                  ),
-                ),
-                const SizedBox(height: 3),
-                if (friend.uid != null)
-                  FriendPresenceLabel(userId: friend.uid!)
-                else
-                  Text(
-                    friend.email,
-                    style: TextStyle(
-                      color: AppColors.themedGrey,
-                      fontSize: 12,
+            child: InkWell(
+              onTap: onViewProfile,
+              borderRadius: BorderRadius.circular(8),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(vertical: 4),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      friend.name,
+                      style: TextStyle(
+                        color: AppColors.themedText,
+                        fontWeight: FontWeight.w700,
+                        fontSize: 15,
+                      ),
                     ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-              ],
+                    const SizedBox(height: 3),
+                    if (friend.uid != null)
+                      FriendPresenceLabel(userId: friend.uid!)
+                    else
+                      Text(
+                        friend.email,
+                        style: TextStyle(
+                          color: AppColors.themedGrey,
+                          fontSize: 12,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                  ],
+                ),
+              ),
             ),
           ),
 
@@ -410,9 +443,7 @@ class _FriendCard extends StatelessWidget {
               decoration: BoxDecoration(
                 color: Colors.transparent,
                 borderRadius: BorderRadius.circular(10),
-                border: Border.all(
-                  color: AppColors.themedGreyBorder,
-                ),
+                border: Border.all(color: AppColors.themedGreyBorder),
               ),
               child: Text(
                 'Following',
@@ -424,7 +455,7 @@ class _FriendCard extends StatelessWidget {
               ),
             ),
           ),
-          
+
           const SizedBox(width: 8),
 
           // Message button
@@ -469,10 +500,10 @@ class _RequestsTabState extends State<_RequestsTab> {
   Future<void> _respond(String requestId, bool accept) async {
     setState(() => _busy.add(requestId));
     final message = await context.read<CommunityProvider>().respondToRequest(
-          requestId,
-          accept,
-          widget.currentId,
-        );
+      requestId,
+      accept,
+      widget.currentId,
+    );
     if (!mounted) return;
     setState(() => _busy.remove(requestId));
     ScaffoldMessenger.of(context).showSnackBar(
@@ -563,12 +594,12 @@ class _RequestCard extends StatelessWidget {
   String _initials(String name) => name.trim().isEmpty
       ? '?'
       : name
-          .trim()
-          .split(RegExp(r'\s+'))
-          .map((part) => part[0])
-          .take(2)
-          .join()
-          .toUpperCase();
+            .trim()
+            .split(RegExp(r'\s+'))
+            .map((part) => part[0])
+            .take(2)
+            .join()
+            .toUpperCase();
 
   @override
   Widget build(BuildContext context) {
@@ -667,10 +698,7 @@ class _RequestCard extends StatelessWidget {
 
           Text(
             '${request.senderName} wants to be your riding buddy! 🏍️',
-            style: TextStyle(
-              color: AppColors.themedGrey,
-              fontSize: 13,
-            ),
+            style: TextStyle(color: AppColors.themedGrey, fontSize: 13),
           ),
 
           const SizedBox(height: 14),

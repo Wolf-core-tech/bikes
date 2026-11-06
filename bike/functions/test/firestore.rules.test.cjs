@@ -58,6 +58,17 @@ beforeEach(async () => {
         nameLower: "bob",
         photoPath: null,
       }),
+      setDoc(doc(db, "profileDetails", "alice", "fields", "dateOfBirth"), {
+        value: "1990-01-02",
+        visibility: "friends",
+      }),
+      setDoc(doc(db, "profileDetails", "alice", "fields", "bloodGroup"), {
+        value: "O+",
+      }),
+      setDoc(doc(db, "profileDetails", "alice", "fields", "healthIssue"), {
+        value: "Private condition",
+        visibility: "none",
+      }),
       setDoc(doc(db, "friendships", "alice_bob"), {
         members: ["alice", "bob"],
         accepted: true,
@@ -133,6 +144,39 @@ test("a signed-in user cannot read another user's private profile", async () => 
 test("a user can read their own private profile", async () => {
   const db = testEnvironment.authenticatedContext("alice").firestore();
   await assertSucceeds(getDoc(doc(db, "users", "alice")));
+});
+
+test("profile health details follow per-field visibility rules", async () => {
+  const friendDb = testEnvironment.authenticatedContext("bob").firestore();
+  const strangerDb = testEnvironment.authenticatedContext("charlie").firestore();
+  await assertSucceeds(
+    getDoc(doc(friendDb, "profileDetails", "alice", "fields", "dateOfBirth")),
+  );
+  await assertSucceeds(
+    getDoc(doc(friendDb, "profileDetails", "alice", "fields", "bloodGroup")),
+  );
+  await assertFails(
+    getDoc(doc(friendDb, "profileDetails", "alice", "fields", "healthIssue")),
+  );
+  await assertFails(
+    getDoc(doc(strangerDb, "profileDetails", "alice", "fields", "dateOfBirth")),
+  );
+  await assertSucceeds(
+    getDoc(doc(strangerDb, "profileDetails", "alice", "fields", "bloodGroup")),
+  );
+});
+
+test("everyone visibility can be read by any signed-in rider", async () => {
+  await testEnvironment.withSecurityRulesDisabled(async (context) => {
+    await updateDoc(
+      doc(context.firestore(), "profileDetails", "alice", "fields", "healthIssue"),
+      {visibility: "everyone"},
+    );
+  });
+  const strangerDb = testEnvironment.authenticatedContext("charlie").firestore();
+  await assertSucceeds(
+    getDoc(doc(strangerDb, "profileDetails", "alice", "fields", "healthIssue")),
+  );
 });
 
 test("authenticated users can discover minimal public profiles but cannot write them", async () => {

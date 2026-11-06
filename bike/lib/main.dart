@@ -78,6 +78,16 @@ class BikeSquadApp extends StatelessWidget {
       debugShowCheckedModeBanner: false,
       navigatorKey: appNavigatorKey,
       theme: appTheme.themeData,
+      builder: (context, child) {
+        final mediaQuery = MediaQuery.of(context);
+        final systemScale = mediaQuery.textScaler.scale(14) / 14;
+        return MediaQuery(
+          data: mediaQuery.copyWith(
+            textScaler: TextScaler.linear(systemScale * appTheme.fontScale),
+          ),
+          child: child ?? const SizedBox.shrink(),
+        );
+      },
       home: const SplashScreen(),
     );
   }
@@ -130,7 +140,6 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
       MapTabScreen(onRideEnded: () => setState(() => _selectedIndex = 0)),
       const SquadScreen(),
       const StatsScreen(),
-      const SettingsScreen(),
     ];
     _syncPresence();
     final notifications = context.read<NotificationProvider>();
@@ -329,10 +338,21 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
           ),
           child: BottomNavigationBar(
             currentIndex: _selectedIndex,
-            onTap: (i) => setState(() => _selectedIndex = i),
+            onTap: (i) {
+              if (i == 4) {
+                Navigator.push<void>(
+                  context,
+                  MaterialPageRoute<void>(
+                    builder: (_) => const SettingsScreen(),
+                  ),
+                );
+                return;
+              }
+              setState(() => _selectedIndex = i);
+            },
             backgroundColor: AppColors.themedBackground,
             selectedItemColor: AppColors.orange,
-            unselectedItemColor: const Color.fromARGB(255, 247, 241, 241),
+            unselectedItemColor: AppColors.themedText,
             type: BottomNavigationBarType.fixed,
             selectedFontSize: 11,
             unselectedFontSize: 11,
@@ -395,12 +415,15 @@ class _HomeScreen extends StatelessWidget {
           style: TextStyle(color: AppColors.themedText),
         ),
         actions: [
-          IconButton(
-            tooltip: 'Chats',
-            icon: const Icon(Icons.chat_bubble_outline),
-            onPressed: () => Navigator.push<void>(
-              context,
-              MaterialPageRoute<void>(builder: (_) => const ChatsScreen()),
+          _HomePressEffect(
+            borderRadius: BorderRadius.circular(28),
+            child: IconButton(
+              tooltip: 'Chats',
+              icon: const Icon(Icons.chat_bubble_outline),
+              onPressed: () => Navigator.push<void>(
+                context,
+                MaterialPageRoute<void>(builder: (_) => const ChatsScreen()),
+              ),
             ),
           ),
           Row(
@@ -409,13 +432,16 @@ class _HomeScreen extends StatelessWidget {
               Stack(
                 alignment: Alignment.center,
                 children: [
-                  IconButton(
-                    tooltip: 'Announcements',
-                    icon: const Icon(Icons.campaign_outlined),
-                    onPressed: () => Navigator.push<void>(
-                      context,
-                      MaterialPageRoute<void>(
-                        builder: (_) => const AnnouncementsScreen(),
+                  _HomePressEffect(
+                    borderRadius: BorderRadius.circular(28),
+                    child: IconButton(
+                      tooltip: 'Announcements',
+                      icon: const Icon(Icons.campaign_outlined),
+                      onPressed: () => Navigator.push<void>(
+                        context,
+                        MaterialPageRoute<void>(
+                          builder: (_) => const AnnouncementsScreen(),
+                        ),
                       ),
                     ),
                   ),
@@ -439,13 +465,16 @@ class _HomeScreen extends StatelessWidget {
               Stack(
                 alignment: Alignment.center,
                 children: [
-                  IconButton(
-                    tooltip: 'Notifications',
-                    icon: const Icon(Icons.notifications_outlined),
-                    onPressed: () => Navigator.push<void>(
-                      context,
-                      MaterialPageRoute<void>(
-                        builder: (_) => const NotificationSettingsScreen(),
+                  _HomePressEffect(
+                    borderRadius: BorderRadius.circular(28),
+                    child: IconButton(
+                      tooltip: 'Notifications',
+                      icon: const Icon(Icons.notifications_outlined),
+                      onPressed: () => Navigator.push<void>(
+                        context,
+                        MaterialPageRoute<void>(
+                          builder: (_) => const NotificationSettingsScreen(),
+                        ),
                       ),
                     ),
                   ),
@@ -531,19 +560,6 @@ class _HomeScreen extends StatelessWidget {
                       ],
                     ),
                   ),
-                  Container(
-                    width: 42,
-                    height: 42,
-                    decoration: BoxDecoration(
-                      color: AppColors.orange.withValues(alpha: 0.12),
-                      borderRadius: BorderRadius.circular(14),
-                    ),
-                    child: IconButton(
-                      icon: const Icon(Icons.filter_alt_outlined, size: 20),
-                      color: AppColors.orange,
-                      onPressed: () {},
-                    ),
-                  ),
                 ],
               ),
               const SizedBox(height: 18),
@@ -562,43 +578,19 @@ class _HomeScreen extends StatelessWidget {
                 crossAxisCount: 2,
                 mainAxisSpacing: 12,
                 crossAxisSpacing: 12,
-                childAspectRatio: 1.42,
+                childAspectRatio: 2.15,
                 children: [
                   _QuickActionCard(
                     icon: Icons.person_add_alt_1_rounded,
                     title: 'Add Rider',
-                    color: const Color(0xFFFFF0EC),
                     onTap: () => showAddRiderDialog(context),
                   ),
                   _QuickActionCard(
                     icon: Icons.two_wheeler_rounded,
                     title: 'Add Bike',
-                    color: const Color(0xFFF4F6FF),
                     onTap: () => showDialog<void>(
                       context: context,
                       builder: (_) => const AddBikeDialog(),
-                    ),
-                  ),
-                  _QuickActionCard(
-                    icon: Icons.chat_bubble_outline_rounded,
-                    title: 'Messages',
-                    color: const Color(0xFFF5F3FF),
-                    onTap: () => Navigator.push<void>(
-                      context,
-                      MaterialPageRoute<void>(
-                        builder: (_) => const ChatsScreen(),
-                      ),
-                    ),
-                  ),
-                  _QuickActionCard(
-                    icon: Icons.notifications_active_outlined,
-                    title: 'Alerts',
-                    color: const Color(0xFFFDF7E8),
-                    onTap: () => Navigator.push<void>(
-                      context,
-                      MaterialPageRoute<void>(
-                        builder: (_) => const NotificationSettingsScreen(),
-                      ),
                     ),
                   ),
                 ],
@@ -682,25 +674,28 @@ class _HomeScreen extends StatelessWidget {
                       ],
                     ),
                     const SizedBox(height: 20),
-                    SizedBox(
-                      width: double.infinity,
-                      child: ElevatedButton.icon(
-                        onPressed: () => onRideStarted(),
-                        icon: const Icon(Icons.play_arrow_rounded),
-                        label: const Text(
-                          'Start ride',
-                          style: TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.w700,
+                    _HomePressEffect(
+                      borderRadius: BorderRadius.circular(16),
+                      child: SizedBox(
+                        width: double.infinity,
+                        child: ElevatedButton.icon(
+                          onPressed: () => onRideStarted(),
+                          icon: const Icon(Icons.play_arrow_rounded),
+                          label: const Text(
+                            'Start ride',
+                            style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w700,
+                            ),
                           ),
-                        ),
-                        style: ElevatedButton.styleFrom(
-                          elevation: 0,
-                          backgroundColor: AppColors.orange,
-                          foregroundColor: Colors.white,
-                          minimumSize: const Size.fromHeight(52),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(16),
+                          style: ElevatedButton.styleFrom(
+                            elevation: 0,
+                            backgroundColor: AppColors.orange,
+                            foregroundColor: Colors.white,
+                            minimumSize: const Size.fromHeight(52),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(16),
+                            ),
                           ),
                         ),
                       ),
@@ -840,46 +835,49 @@ class _HomeScreen extends StatelessWidget {
                 ),
               ),
               const SizedBox(height: 18),
-              SizedBox(
-                width: double.infinity,
-                child: Material(
-                  color: const Color(0xFFFFF2EE),
-                  borderRadius: BorderRadius.circular(18),
-                  child: InkWell(
+              _HomePressEffect(
+                borderRadius: BorderRadius.circular(18),
+                child: SizedBox(
+                  width: double.infinity,
+                  child: Material(
+                    color: const Color(0xFFFFF2EE),
                     borderRadius: BorderRadius.circular(18),
-                    onTap: () => Navigator.push<void>(
-                      context,
-                      MaterialPageRoute<void>(
-                        builder: (_) => const RideReportsScreen(),
+                    child: InkWell(
+                      borderRadius: BorderRadius.circular(18),
+                      onTap: () => Navigator.push<void>(
+                        context,
+                        MaterialPageRoute<void>(
+                          builder: (_) => const RideReportsScreen(),
+                        ),
                       ),
-                    ),
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 16,
-                        vertical: 14,
-                      ),
-                      child: Row(
-                        children: [
-                          const Icon(
-                            Icons.summarize_outlined,
-                            color: AppColors.danger,
-                          ),
-                          const SizedBox(width: 12),
-                          const Expanded(
-                            child: Text(
-                              'Generate rider report',
-                              style: TextStyle(
-                                color: AppColors.black,
-                                fontSize: 15,
-                                fontWeight: FontWeight.w700,
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 16,
+                          vertical: 14,
+                        ),
+                        child: Row(
+                          children: [
+                            const Icon(
+                              Icons.summarize_outlined,
+                              color: AppColors.danger,
+                            ),
+                            const SizedBox(width: 12),
+                            const Expanded(
+                              child: Text(
+                                'Generate rider report',
+                                style: TextStyle(
+                                  color: AppColors.black,
+                                  fontSize: 15,
+                                  fontWeight: FontWeight.w700,
+                                ),
                               ),
                             ),
-                          ),
-                          Icon(
-                            Icons.chevron_right_rounded,
-                            color: AppColors.themedGrey,
-                          ),
-                        ],
+                            Icon(
+                              Icons.chevron_right_rounded,
+                              color: AppColors.themedGrey,
+                            ),
+                          ],
+                        ),
                       ),
                     ),
                   ),
@@ -889,6 +887,64 @@ class _HomeScreen extends StatelessWidget {
             ],
           ),
         ),
+      ),
+    );
+  }
+}
+
+class _HomePressEffect extends StatefulWidget {
+  const _HomePressEffect({required this.child, required this.borderRadius});
+
+  final Widget child;
+  final BorderRadius borderRadius;
+
+  @override
+  State<_HomePressEffect> createState() => _HomePressEffectState();
+}
+
+class _HomePressEffectState extends State<_HomePressEffect> {
+  final Set<int> _activePointers = {};
+
+  void _handlePointerDown(PointerDownEvent event) {
+    if (_activePointers.add(event.pointer) && _activePointers.length == 1) {
+      setState(() {});
+    }
+  }
+
+  void _handlePointerEnd(PointerEvent event) {
+    if (_activePointers.remove(event.pointer) && _activePointers.isEmpty) {
+      setState(() {});
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final isPressed = _activePointers.isNotEmpty;
+    return Listener(
+      behavior: HitTestBehavior.translucent,
+      onPointerDown: _handlePointerDown,
+      onPointerUp: _handlePointerEnd,
+      onPointerCancel: _handlePointerEnd,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 140),
+        curve: Curves.easeOutCubic,
+        transform: Matrix4.identity()
+          ..translateByDouble(0, isPressed ? -2.5 : 0, 0, 1)
+          ..scaleByDouble(isPressed ? 1.035 : 1, isPressed ? 1.035 : 1, 1, 1),
+        transformAlignment: Alignment.center,
+        decoration: BoxDecoration(
+          borderRadius: widget.borderRadius,
+          boxShadow: isPressed
+              ? [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.12),
+                    blurRadius: 10,
+                    offset: const Offset(0, 4),
+                  ),
+                ]
+              : const [],
+        ),
+        child: widget.child,
       ),
     );
   }
@@ -942,47 +998,50 @@ class _FeatureTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return InkWell(
-      onTap: onTap,
+    return _HomePressEffect(
       borderRadius: BorderRadius.circular(20),
-      child: Container(
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: const Color(0xFFE9E1DE), width: 1),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Container(
-              width: 42,
-              height: 42,
-              decoration: BoxDecoration(
-                color: AppColors.orange.withValues(alpha: 0.1),
-                borderRadius: BorderRadius.circular(14),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(20),
+        child: Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(color: const Color(0xFFE9E1DE), width: 1),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                width: 42,
+                height: 42,
+                decoration: BoxDecoration(
+                  color: AppColors.orange.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(14),
+                ),
+                child: Icon(icon, color: AppColors.orange, size: 20),
               ),
-              child: Icon(icon, color: AppColors.orange, size: 20),
-            ),
-            const SizedBox(height: 10),
-            Text(
-              title,
-              style: TextStyle(
-                color: AppColors.themedText,
-                fontSize: 14,
-                fontWeight: FontWeight.w700,
+              const SizedBox(height: 10),
+              Text(
+                title,
+                style: TextStyle(
+                  color: AppColors.themedText,
+                  fontSize: 14,
+                  fontWeight: FontWeight.w700,
+                ),
               ),
-            ),
-            const SizedBox(height: 4),
-            Text(
-              value,
-              style: TextStyle(
-                color: AppColors.themedGrey,
-                fontSize: 12,
-                fontWeight: FontWeight.w600,
+              const SizedBox(height: 4),
+              Text(
+                value,
+                style: TextStyle(
+                  color: AppColors.themedGrey,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );
@@ -992,50 +1051,54 @@ class _FeatureTile extends StatelessWidget {
 class _QuickActionCard extends StatelessWidget {
   final IconData icon;
   final String title;
-  final Color color;
   final VoidCallback onTap;
 
   const _QuickActionCard({
     required this.icon,
     required this.title,
-    required this.color,
     required this.onTap,
   });
 
   @override
   Widget build(BuildContext context) {
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(18),
-      child: Container(
-        padding: const EdgeInsets.all(14),
-        decoration: BoxDecoration(
-          color: color,
-          borderRadius: BorderRadius.circular(18),
-        ),
-        child: Row(
-          children: [
-            Container(
-              width: 42,
-              height: 42,
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: Icon(icon, color: AppColors.orange, size: 20),
+    return _HomePressEffect(
+      borderRadius: BorderRadius.circular(12),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(12),
+        child: Container(
+          padding: const EdgeInsets.all(8),
+          decoration: BoxDecoration(
+            color: AppColors.themedSurface,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(
+              color: AppColors.themedGreyBorder.withValues(alpha: 0.35),
             ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Text(
-                title,
-                style: TextStyle(
-                  color: AppColors.themedText,
-                  fontSize: 14,
-                  fontWeight: FontWeight.w700,
+          ),
+          child: Row(
+            children: [
+              Container(
+                width: 30,
+                height: 30,
+                decoration: BoxDecoration(
+                  color: AppColors.themedBackground,
+                  borderRadius: BorderRadius.circular(9),
+                ),
+                child: Icon(icon, color: AppColors.orange, size: 16),
+              ),
+              const SizedBox(width: 7),
+              Expanded(
+                child: Text(
+                  title,
+                  style: TextStyle(
+                    color: AppColors.themedText,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700,
+                  ),
                 ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );

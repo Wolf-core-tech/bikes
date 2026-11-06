@@ -213,10 +213,72 @@ class _SecuritySettingsScreenState extends State<SecuritySettingsScreen> {
               ],
             ],
           ),
+          const SizedBox(height: 16),
+          _SecurityCard(
+            title: 'More security options',
+            children: [
+              _SecurityAvailabilityTile(
+                icon: Icons.verified_user_outlined,
+                title: 'Two-factor authentication',
+                subtitle: 'Not available for this account yet',
+              ),
+              const Divider(height: 24),
+              _SecurityAvailabilityTile(
+                icon: Icons.fingerprint_rounded,
+                title: 'Biometric login',
+                subtitle: 'Fingerprint and Face ID are not configured',
+              ),
+              const Divider(height: 24),
+              _SecurityAvailabilityTile(
+                icon: Icons.devices_outlined,
+                title: 'Login activity & active devices',
+                subtitle: 'Device session history is not available yet',
+              ),
+            ],
+          ),
         ],
       ),
     );
   }
+}
+
+class _SecurityAvailabilityTile extends StatelessWidget {
+  const _SecurityAvailabilityTile({
+    required this.icon,
+    required this.title,
+    required this.subtitle,
+  });
+
+  final IconData icon;
+  final String title;
+  final String subtitle;
+
+  @override
+  Widget build(BuildContext context) => Row(
+    children: [
+      Icon(icon, color: AppColors.orange),
+      const SizedBox(width: 12),
+      Expanded(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              title,
+              style: TextStyle(
+                color: AppColors.themedText,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              subtitle,
+              style: TextStyle(color: AppColors.themedGrey, fontSize: 12),
+            ),
+          ],
+        ),
+      ),
+    ],
+  );
 }
 
 class _SecurityCard extends StatelessWidget {

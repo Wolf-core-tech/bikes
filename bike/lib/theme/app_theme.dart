@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class BikesColors {
   static const Color black = Color(0xFF050505);
@@ -54,26 +55,67 @@ class AppColors {
 class AppTheme extends ChangeNotifier {
   AppTheme({bool isDarkMode = false}) : _isDarkMode = isDarkMode {
     _syncColors();
+    _restorePreferences();
   }
 
+  static const _darkModeKey = 'settings_dark_mode';
+  static const _fontScaleKey = 'settings_font_scale';
   bool _isDarkMode;
+  double _fontScale = 1;
 
   bool get isDarkMode => _isDarkMode;
+  double get fontScale => _fontScale;
+
+  Future<void> _restorePreferences() async {
+    try {
+      final preferences = await SharedPreferences.getInstance();
+      _isDarkMode = preferences.getBool(_darkModeKey) ?? _isDarkMode;
+      final savedFontScale = preferences.getDouble(_fontScaleKey) ?? 1;
+      _fontScale = const [0.9, 1, 1.15].contains(savedFontScale)
+          ? savedFontScale
+          : 1;
+      _syncColors();
+      notifyListeners();
+    } catch (error) {
+      debugPrint('Unable to restore app preferences: $error');
+    }
+  }
 
   void _syncColors() {
     AppColors.syncTheme(_isDarkMode);
   }
 
   void toggleTheme() {
-    _isDarkMode = !_isDarkMode;
-    _syncColors();
-    notifyListeners();
+    setTheme(!_isDarkMode);
   }
 
   void setTheme(bool value) {
     _isDarkMode = value;
     _syncColors();
     notifyListeners();
+    _savePreference(_darkModeKey, value);
+  }
+
+  void setFontScale(double value) {
+    if (value < 0.8 || value > 1.5) {
+      throw ArgumentError.value(value, 'value', 'Must be between 0.8 and 1.5.');
+    }
+    _fontScale = value;
+    notifyListeners();
+    _savePreference(_fontScaleKey, value);
+  }
+
+  Future<void> _savePreference(String key, Object value) async {
+    try {
+      final preferences = await SharedPreferences.getInstance();
+      if (value is bool) {
+        await preferences.setBool(key, value);
+      } else if (value is double) {
+        await preferences.setDouble(key, value);
+      }
+    } catch (error) {
+      debugPrint('Unable to save app preference "$key": $error');
+    }
   }
 
   ThemeData get themeData => _isDarkMode ? _darkTheme : _lightTheme;
